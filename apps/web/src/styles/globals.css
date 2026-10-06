@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+@import 'react-day-picker/style.css';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: #ffffff;
+  --color-muted: #f0f3f6;
+  --color-muted-foreground: #556276;
+  --color-border: #dce2e9;
+  --color-input: #cbd3dd;
+  --color-ring: #2458b8;
+  --color-destructive: #b42318;
+  --font-sans: Arial, Helvetica, sans-serif;
+}
+
+:root {
+  --background: #fafbfc;
+  --foreground: #17253b;
+  --card: #ffffff;
+  --primary: #2458b8;
+}
+* {
+  border-color: var(--color-border);
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled),
+a {
+  cursor: pointer;
+}
+a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: #eaf0ff;
+  font-size: 0.9rem;
+}
+.field-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.field-error {
+  margin-top: 0.35rem;
+  color: var(--color-destructive);
+  font-size: 0.8rem;
+}

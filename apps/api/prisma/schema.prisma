@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum BookingStatus {
+  BOOKING_PENDING
+  BOOKING_PROCESSING
+  BOOKING_CONFIRMED
+  BOOKING_FAILED
+  BOOKING_CANCELLED
+  RECONCILIATION_REQUIRED
+}
+
+enum PaymentStatus {
+  PAYMENT_PENDING
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum GuestType {
+  ADULT
+  CHILD
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum OutboxKind {
+  BOOKING_FULFILLMENT
+  BOOKING_STATUS_CHECK
+  BOOKING_CONFIRMATION_EMAIL
+  PAYMENT_RECONCILIATION
+  REFUND_PROCESSING
+}
+
+model User {
+  id              String           @id @default(uuid()) @db.Uuid
+  clerkId         String           @unique
+  email           String?
+  firstName       String?
+  lastName        String?
+  role            Role             @default(USER)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  customerProfile CustomerProfile?
+  bookings        Booking[]
+  priceQuotes     PriceQuote[]
+  favorites       HotelFavorite[]
+  auditLogs       AuditLog[]
+}
+
+model CustomerProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  nationality String?  @db.VarChar(2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Every amount is an integer in the currency's minor unit. Snapshots contain
+// normalized domain data only; supplier credentials and raw payloads never belong here.
+model PriceQuote {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  supplier         String
+  supplierRateId   String
+  hotelId          String
+  hotelName        String
+  roomId           String
+  roomName         String
+  checkIn          DateTime  @db.Date
+  checkOut         DateTime  @db.Date
+  occupancy        Json
+  currency         String    @db.VarChar(3)
+  baseAmount       Int
+  taxAmount        Int
+  feeAmount        Int
+  markupAmount     Int
+  discountAmount   Int
+  totalAmount      Int
+  pricingSnapshot  Json
+  policySnapshot   Json
+  supplierMetadata Json      @default("{}")
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  booking          Booking?
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model Booking {
+  id                  String         @id @default(uuid()) @db.Uuid
+  userId              String         @db.Uuid
+  quoteId             String         @unique @db.Uuid
+  idempotencyKey      String         @db.VarChar(128)
+  requestHash         String         @db.VarChar(64)
+  supplier            String
+  supplierBookingId   String?
+  confirmationNumber  String?
+  hotelCode           String
+  hotelName           String
+  checkIn             DateTime       @db.Date
+  checkOut            DateTime       @db.Date
+  currency            String         @db.VarChar(3)
+  baseAmount          Int
+  taxAmount           Int
+  feeAmount           Int
+  markupAmount        Int
+  discountAmount      Int
+  totalAmount         Int
+  pricingSnapshot     Json
+  policySnapshot      Json
+  customerSnapshot    Json?
+  occupancySnapshot   Json
+  bookingStatus       BookingStatus  @default(BOOKING_PENDING)
+  paymentStatus       PaymentStatus  @default(PAYMENT_PENDING)
+  guestsCapturedAt    DateTime?
+  supplierAttemptedAt DateTime?
+  confirmedAt         DateTime?
+  failureCode         String?
+  version             Int            @default(0)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  user                User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  quote               PriceQuote     @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  guests              BookingGuest[]
+  rooms               BookingRoom[]
+  payments            Payment[]
+  refunds             Refund[]
+  auditLogs           AuditLog[]
+
+  @@unique([userId, idempotencyKey])
+  @@unique([supplier, supplierBookingId])
+  @@index([userId, createdAt])
+  @@index([bookingStatus, updatedAt])
+  @@index([paymentStatus, updatedAt])
+}
+
+model BookingGuest {
+  id        String    @id @default(uuid()) @db.Uuid
+  bookingId String    @db.Uuid
+  roomIndex Int
+  title     String
+  firstName String
+  lastName  String
+  type      GuestType
+  age       Int?
+  leadGuest Boolean   @default(false)
+  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, roomIndex])
+}
+
+model BookingRoom {
+  id           String  @id @default(uuid()) @db.Uuid
+  bookingId    String  @db.Uuid
+  roomIndex    Int
+  roomCode     String
+  roomName     String
+  adults       Int
+  childrenAges Json
+  booking      Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, roomIndex])
+}
+
+model Payment {
+  id                     String         @id @default(uuid()) @db.Uuid
+  bookingId              String         @db.Uuid
+  provider               String
+  providerPaymentId      String?
+  idempotencyKey         String         @db.VarChar(128)
+  requestHash            String         @db.VarChar(64)
+  currency               String         @db.VarChar(3)
+  amount                 Int
+  status                 PaymentStatus  @default(PAYMENT_PENDING)
+  checkoutUrl            String?
+  checkoutExpiresAt      DateTime?
+  requiresReconciliation Boolean        @default(false)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  booking                Booking        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  events                 PaymentEvent[]
+  refunds                Refund[]
+
+  // One checkout reservation per booking prevents concurrent keys charging twice.
+  @@unique([bookingId])
+  @@unique([provider, providerPaymentId])
+  @@index([status, updatedAt])
+}
+
+model PaymentEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  provider        String
+  providerEventId String
+  paymentId       String   @db.Uuid
+  type            String
+  payloadHash     String   @db.VarChar(64)
+  receivedAt      DateTime @default(now())
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerEventId])
+  @@index([paymentId, receivedAt])
+}
+
+model Refund {
+  id               String       @id @default(uuid()) @db.Uuid
+  bookingId        String       @db.Uuid
+  paymentId        String       @db.Uuid
+  providerRefundId String?
+  idempotencyKey   String       @unique
+  amount           Int
+  currency         String       @db.VarChar(3)
+  reason           String
+  status           RefundStatus @default(PENDING)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  booking          Booking      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  payment          Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([status, updatedAt])
+}
+
+model HotelFavorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  supplier  String
+  hotelCode String
+  hotelName String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, supplier, hotelCode])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  bookingId String?  @db.Uuid
+  action    String
+  requestId String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// Inserted with the domain mutation. Redis is a delivery mechanism, never the
+// sole record that money was received or supplier work remains outstanding.
+model OutboxEvent {
+  id          String     @id @default(uuid()) @db.Uuid
+  kind        OutboxKind
+  aggregateId String     @db.Uuid
+  dedupeKey   String     @unique
+  createdAt   DateTime   @default(now())
+  availableAt DateTime   @default(now())
+  completedAt DateTime?
+  attempts    Int        @default(0)
+  lastError   String?
+
+  @@index([completedAt, availableAt])
+}

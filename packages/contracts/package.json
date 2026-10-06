@@ -1,0 +1,28 @@
+{
+  "name": "@hotel/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@hotel/typescript-config": "workspace:*",
+    "@hotel/eslint-config": "workspace:*",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

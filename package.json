@@ -1,0 +1,34 @@
+{
+  "name": "hotel-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "pnpm db:generate && pnpm --filter @hotel/contracts build && turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "pnpm --filter @hotel/api test:integration",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @hotel/api db:generate",
+    "db:migrate": "pnpm --filter @hotel/api db:migrate",
+    "db:deploy": "pnpm --filter @hotel/api db:deploy",
+    "db:studio": "pnpm --filter @hotel/api db:studio",
+    "infra:up": "docker compose -f docker/compose.yaml up -d --wait",
+    "infra:down": "docker compose -f docker/compose.yaml down"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.5",
+    "prettier": "^3.6.2",
+    "turbo": "2.11.7",
+    "typescript": "~5.9.3"
+  }
+}

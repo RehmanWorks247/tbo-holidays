@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env", "packages/typescript-config/*.json"],
+  "globalEnv": ["NODE_ENV", "CI"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build", "db:generate"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NEXT_PUBLIC_*", "CLERK_SECRET_KEY"]
+    },
+    "dev": { "cache": false, "persistent": true, "env": ["*"] },
+    "lint": { "dependsOn": ["^build"] },
+    "typecheck": {
+      "dependsOn": ["^build", "db:generate"],
+      "env": ["NEXT_PUBLIC_*", "CLERK_SECRET_KEY"]
+    },
+    "test": { "dependsOn": ["^build", "db:generate"], "outputs": [] },
+    "db:generate": { "cache": false }
+  }
+}

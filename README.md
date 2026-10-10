@@ -6,7 +6,7 @@ This is production-oriented **structure**, with working validation, persistence 
 
 ## Stack
 
-- Next.js 16.3.8 App Router, React 19, Tailwind 4, local shadcn/ui primitives
+- Next.js 16.3.8 App Router, React 19, Tailwind 4, local shadcn/ui and Radix primitives, next-themes
 - TanStack Query, React Hook Form, Zod and Clerk
 - NestJS modular monolith, PostgreSQL, Prisma 6.19, Redis and BullMQ
 - Strict TypeScript, ESLint, Prettier, Vitest and GitHub Actions
@@ -65,6 +65,12 @@ docs/                  architecture, booking workflow and development guidance
 ```
 
 No separate UI package or generic configuration package exists yet: there is one frontend, and server secrets must remain server-only.
+
+## Frontend design and themes
+
+The Stayline homepage uses a responsive travel layout, local destination photography, and shared shadcn-style Radix primitives. The appearance menu supports light, dark, and system themes with a persistent browser preference. Semantic colors live centrally in `apps/web/src/styles/globals.css`; feature layouts use CSS Modules. See [theming and frontend design](docs/theming.md) for customization and [photography sources](docs/image-sources.md) for image credits.
+
+Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. Search still requires a supplier city code; the backend remains authoritative for inventory, prices, and booking outcomes.
 
 ## Configuration and integration boundaries
 

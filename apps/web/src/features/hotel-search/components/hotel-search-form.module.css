@@ -1,0 +1,452 @@
+.form {
+  position: relative;
+  z-index: 5;
+  padding: 12px;
+  border-radius: 0 6px 6px 6px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-card);
+  font-family: inherit;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: 1.25fr 1.15fr 1fr 145px;
+  gap: 8px;
+  align-items: start;
+}
+
+.destination,
+.fieldButton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 50px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 14px;
+  border: 1px solid var(--input);
+  border-radius: 5px;
+  background: var(--card);
+  color: var(--foreground);
+  text-align: left;
+}
+
+.destination {
+  position: relative;
+}
+
+.destination > svg,
+.fieldButton > svg {
+  flex-shrink: 0;
+}
+
+.destinationText,
+.fieldText {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+
+.destinationText label,
+.fieldLabel {
+  display: block;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.destinationText input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.destinationText input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.fieldValue {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 21px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  margin-left: auto;
+}
+
+.destination:focus-within,
+.fieldButton:focus-visible,
+.fieldButton[aria-expanded='true'] {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.fieldButton[data-invalid='true'],
+.destination:has(input[aria-invalid='true']) {
+  border-color: var(--destructive);
+}
+
+.destinationHelp {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 9px);
+  left: -1px;
+  width: max(100%, 290px);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.destinationHelp p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.destination:focus-within .destinationHelp {
+  display: block;
+}
+
+.dateField,
+.guestField {
+  position: relative;
+  min-width: 0;
+}
+
+.dateSeparator {
+  color: var(--text-subtle);
+}
+
+.searchButton,
+.doneButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 50px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--search-button);
+  color: var(--search-button-foreground);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  transition: background 150ms ease;
+}
+
+.searchButton:hover,
+.doneButton:hover {
+  background: var(--search-button-hover);
+}
+
+.form button:focus-visible,
+.popover button:focus-visible,
+.popover select:focus-visible,
+.preferences input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.popover {
+  z-index: 50;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+}
+
+.popoverHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 17px;
+  font-size: 17px;
+}
+
+.closeButton {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+}
+
+.guestsPopover {
+  width: min(345px, calc(100vw - 32px));
+  max-height: min(75vh, var(--radix-popover-content-available-height));
+  overflow-y: auto;
+}
+
+.room {
+  position: relative;
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 0 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.room legend {
+  margin-bottom: 13px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.removeRoom {
+  position: absolute;
+  top: -32px;
+  right: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-link);
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.occupancyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 13px;
+  font-size: 14px;
+}
+
+.occupancyRow:last-child {
+  margin-bottom: 0;
+}
+
+.occupancyRow small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-subtle);
+  font-size: 11px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.stepper button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--input);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--surface-subtle);
+}
+
+.stepper button:disabled,
+.addRoom:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.stepper output {
+  min-width: 14px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.childAges,
+.preferences {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.childAges label,
+.preferences label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.childAges select,
+.preferences select,
+.preferences input {
+  display: block;
+  width: 100%;
+  height: 38px;
+  margin-top: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.preferences input {
+  text-transform: uppercase;
+}
+
+.preferences input::placeholder {
+  text-transform: none;
+}
+
+.addRoom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 38px;
+  margin-bottom: 20px;
+  border: 1px solid var(--foreground);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hint,
+.calendarHint {
+  margin: 8px 0 0;
+  color: var(--text-subtle);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.doneButton {
+  width: 100%;
+  height: 40px;
+  margin-top: 17px;
+  font-size: 14px;
+}
+
+.calendarPopover {
+  width: min(338px, calc(100vw - 32px));
+  max-height: var(--radix-popover-content-available-height);
+  overflow-y: auto;
+}
+
+.calendarPopover :global(.rdp-root) {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--surface-blue);
+  --rdp-day-height: 39px;
+  --rdp-day-width: 39px;
+  --rdp-day_button-height: 37px;
+  --rdp-day_button-width: 37px;
+  --rdp-range_middle-background-color: var(--surface-blue);
+  --rdp-range_middle-color: var(--foreground);
+  --rdp-range_start-color: var(--primary-foreground);
+  --rdp-range_end-color: var(--primary-foreground);
+  --rdp-today-color: var(--text-link);
+  font-size: 13px;
+}
+
+.calendarPopover :global(.rdp-month_caption) {
+  font-size: 15px;
+}
+
+.calendarPopover :global(.rdp-selected) {
+  font-size: 14px;
+}
+
+.calendarPopover :global(.rdp-day_button) {
+  border-radius: 5px;
+}
+
+.calendarHint {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.errors,
+.error {
+  margin-top: 9px;
+  color: var(--destructive);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.errors p {
+  margin: 3px 0 0;
+}
+
+@media (max-width: 1000px) {
+  .searchRow {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .form {
+    padding: 12px;
+  }
+
+  .searchRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .searchButton {
+    height: 48px;
+    margin-top: 2px;
+  }
+
+  .destinationHelp {
+    right: 0;
+    left: 0;
+    width: 100%;
+  }
+
+  .guestsPopover,
+  .calendarPopover {
+    width: min(345px, calc(100vw - 32px));
+  }
+
+  .popover {
+    padding: 15px;
+  }
+
+  .calendarPopover :global(.rdp-root) {
+    --rdp-day-height: 36px;
+    --rdp-day-width: clamp(28px, 8vw, 36px);
+    --rdp-day_button-height: 34px;
+    --rdp-day_button-width: clamp(26px, 7.5vw, 34px);
+  }
+
+  .calendarPopover :global(.rdp-months) {
+    justify-content: center;
+  }
+}

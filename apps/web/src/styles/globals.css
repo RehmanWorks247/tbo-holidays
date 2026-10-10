@@ -1,36 +1,98 @@
 @import 'tailwindcss';
 @import 'react-day-picker/style.css';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: #ffffff;
-  --color-muted: #f0f3f6;
-  --color-muted-foreground: #556276;
-  --color-border: #dce2e9;
-  --color-input: #cbd3dd;
-  --color-ring: #2458b8;
-  --color-destructive: #b42318;
-  --font-sans: Arial, Helvetica, sans-serif;
+  --color-primary-foreground: var(--primary-foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-secondary: var(--muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--surface-blue);
+  --color-accent-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --font-sans: var(--font-family);
 }
 
 :root {
-  --background: #fafbfc;
-  --foreground: #17253b;
+  color-scheme: light;
+  --font-family: Arial, Helvetica, sans-serif;
+  --background: #ffffff;
+  --foreground: #1d2538;
   --card: #ffffff;
-  --primary: #2458b8;
+  --primary: #2865db;
+  --primary-foreground: #ffffff;
+  --brand: #2865db;
+  --muted: #f3f5f8;
+  --muted-foreground: #596174;
+  --border: #e0e3e9;
+  --input: #b7bfce;
+  --ring: #4166f5;
+  --destructive: #b42318;
+  --surface-subtle: #f6f7f9;
+  --surface-blue: #edf3ff;
+  --surface-warm: #fff7eb;
+  --text-secondary: #454c5c;
+  --text-subtle: #697184;
+  --text-link: #245bc6;
+  --accent-yellow: #ffe05b;
+  --image-overlay: linear-gradient(180deg, transparent 30%, rgb(11 22 43 / 74%));
+  --shadow-card: 0 4px 20px rgb(23 37 66 / 8%);
+  --search-button: #168547;
+  --search-button-hover: #106b39;
+  --search-button-foreground: #ffffff;
+}
+.dark {
+  color-scheme: dark;
+  --background: #101624;
+  --foreground: #f1f4fa;
+  --card: #1a2333;
+  --primary: #a2b8ff;
+  --primary-foreground: #142146;
+  --brand: #2865db;
+  --muted: #222d40;
+  --muted-foreground: #adb9cc;
+  --border: #354258;
+  --input: #54627a;
+  --ring: #a2b8ff;
+  --destructive: #ff9990;
+  --surface-subtle: #161e2e;
+  --surface-blue: #1a2c4a;
+  --surface-warm: #30281f;
+  --text-secondary: #c8d0df;
+  --text-subtle: #a5b1c5;
+  --text-link: #a2b8ff;
+  --accent-yellow: #ffe05b;
+  --image-overlay: linear-gradient(180deg, rgb(0 0 0 / 5%) 20%, rgb(0 8 24 / 84%));
+  --shadow-card: 0 4px 24px rgb(0 0 0 / 25%);
+  --search-button: #168547;
+  --search-button-hover: #1c9b55;
+  --search-button-foreground: #ffffff;
 }
 * {
-  border-color: var(--color-border);
+  border-color: var(--border);
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 24px;
 }
 body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
 }
 button,
 a,
@@ -43,13 +105,22 @@ a {
   cursor: pointer;
 }
 a:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--ring);
   outline-offset: 4px;
   border-radius: 2px;
 }
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
 .rdp-root {
   --rdp-accent-color: var(--primary);
-  --rdp-accent-background-color: #eaf0ff;
+  --rdp-accent-background-color: var(--surface-blue);
+  --rdp-range_middle-background-color: var(--surface-blue);
+  --rdp-range_middle-color: var(--foreground);
+  --rdp-range_start-color: var(--primary-foreground);
+  --rdp-range_end-color: var(--primary-foreground);
   font-size: 0.9rem;
 }
 .field-label {
@@ -62,4 +133,29 @@ a:focus-visible {
   margin-top: 0.35rem;
   color: var(--color-destructive);
   font-size: 0.8rem;
+}
+.site-main {
+  width: 100%;
+  max-width: 1248px;
+  min-height: 75vh;
+  margin-inline: auto;
+  padding: 32px 24px 64px;
+}
+@media (max-width: 640px) {
+  .site-main {
+    padding: 24px 16px 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

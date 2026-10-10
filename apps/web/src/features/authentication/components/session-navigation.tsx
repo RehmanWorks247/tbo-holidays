@@ -8,18 +8,28 @@ import { useAuthenticationEnabled } from '@/providers/app-providers';
 
 function ClerkSessionNavigation() {
   const { isSignedIn, isLoaded } = useAuth();
-  if (!isLoaded) return <span className="text-sm text-muted-foreground">Loading account…</span>;
+  if (!isLoaded)
+    return (
+      <span className="text-xs text-white/80" aria-label="Loading account">
+        Loading…
+      </span>
+    );
   if (isSignedIn)
     return (
       <div className="flex items-center gap-4">
-        <Link className="text-sm" href="/account">
+        <Link className="hidden text-xs text-white sm:inline" href="/account">
           Account
         </Link>
         <UserButton />
       </div>
     );
   return (
-    <Button asChild variant="outline" size="sm">
+    <Button
+      asChild
+      variant="outline"
+      size="sm"
+      className="border-white/70 bg-transparent text-xs text-white hover:bg-white/15 hover:text-white"
+    >
       <Link href="/sign-in">Sign in</Link>
     </Button>
   );
@@ -30,7 +40,12 @@ export function SessionNavigation() {
   return enabled ? (
     <ClerkSessionNavigation />
   ) : (
-    <Button asChild variant="outline" size="sm">
+    <Button
+      asChild
+      variant="outline"
+      size="sm"
+      className="border-white/70 bg-transparent text-xs text-white hover:bg-white/15 hover:text-white"
+    >
       <Link href="/sign-in">Sign in</Link>
     </Button>
   );

@@ -282,7 +282,7 @@ export function HolidayHome() {
         </div>
       </section>
 
-      <section className={styles.benefitStrip} aria-label="Why Stayline">
+      <section className={styles.benefitStrip} aria-label="Why Best Holiday Packages">
         <div className={styles.benefitIntro}>
           <Heart size={24} />
           <strong>A little more to love</strong>

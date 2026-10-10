@@ -68,7 +68,7 @@ No separate UI package or generic configuration package exists yet: there is one
 
 ## Frontend design and themes
 
-The Stayline homepage uses a responsive travel layout, local destination photography, and shared shadcn-style Radix primitives. The appearance menu supports light, dark, and system themes with a persistent browser preference. Semantic colors live centrally in `apps/web/src/styles/globals.css`; feature layouts use CSS Modules. See [theming and frontend design](docs/theming.md) for customization and [photography sources](docs/image-sources.md) for image credits.
+The Best Holiday Packages homepage uses the supplied company logo, a charcoal theme with a `#00A7E1` blue accent, a responsive travel layout, local destination photography, and shared shadcn-style Radix primitives. The appearance menu supports light, dark, and system themes with a persistent browser preference. Semantic colors live centrally in `apps/web/src/styles/globals.css`; feature layouts use CSS Modules. See [theming and frontend design](docs/theming.md) for customization and [image sources](docs/image-sources.md) for logo and photography credits.
 
 Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. Search still requires a supplier city code; the backend remains authoritative for inventory, prices, and booking outcomes.
 

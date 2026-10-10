@@ -11,9 +11,13 @@ import { HolidayInspirationProvider } from '@/features/hotel-search/components/h
 import { AppProviders } from '@/providers/app-providers';
 
 export const metadata: Metadata = {
-  title: { default: 'Stayline · Find your happy place', template: '%s · Stayline' },
+  title: {
+    default: 'Best Holiday Packages · Find your next stay',
+    template: '%s · Best Holiday Packages',
+  },
+  applicationName: 'Best Holiday Packages',
   description:
-    'Discover your next destination, find a hotel and make room for your next adventure with Stayline.',
+    'Discover your next destination and find a hotel for your journey with Best Holiday Packages.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

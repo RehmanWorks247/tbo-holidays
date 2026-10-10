@@ -359,13 +359,13 @@
 }
 
 .calendarPopover :global(.rdp-root) {
-  --rdp-accent-color: var(--primary);
-  --rdp-accent-background-color: var(--surface-blue);
+  --rdp-accent-color: var(--text-link);
+  --rdp-accent-background-color: var(--surface-accent);
   --rdp-day-height: 39px;
   --rdp-day-width: 39px;
   --rdp-day_button-height: 37px;
   --rdp-day_button-width: 37px;
-  --rdp-range_middle-background-color: var(--surface-blue);
+  --rdp-range_middle-background-color: var(--surface-accent);
   --rdp-range_middle-color: var(--foreground);
   --rdp-range_start-color: var(--primary-foreground);
   --rdp-range_end-color: var(--primary-foreground);

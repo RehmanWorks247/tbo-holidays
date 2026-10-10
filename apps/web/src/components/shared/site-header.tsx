@@ -23,6 +23,7 @@ import {
 import { SessionNavigation } from '@/features/authentication/components/session-navigation';
 
 import styles from './site-chrome.module.css';
+import { SiteLogo } from './site-logo';
 import { ThemeToggle } from './theme-toggle';
 
 type OpenDropdown = 'inspiration' | 'destinations' | null;
@@ -70,16 +71,12 @@ export function SiteHeader() {
           <Link
             href="/"
             className={styles.brand}
-            aria-label="Stayline home"
+            aria-label="Best Holiday Packages home"
             onClick={closeNavigation}
           >
-            <span className={styles.brandIcon} aria-hidden="true">
-              <Sun size={42} strokeWidth={1.8} />
-              <Heart size={20} strokeWidth={2.4} />
-            </span>
-            <span>stayline</span>
+            <SiteLogo preload />
           </Link>
-          <div className={styles.benefits} aria-label="Why Stayline">
+          <div className={styles.benefits} aria-label="Why Best Holiday Packages">
             <span>
               <Sun size={17} aria-hidden="true" /> A stay for every getaway
             </span>
@@ -104,7 +101,7 @@ export function SiteHeader() {
               Manage booking
             </Link>
             <SessionNavigation />
-            <ThemeToggle className="shrink-0 border-white/70 bg-transparent text-white hover:bg-white/15 hover:text-white" />
+            <ThemeToggle className="shrink-0 bg-transparent" />
             <button
               ref={mobileButtonRef}
               type="button"

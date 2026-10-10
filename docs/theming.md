@@ -1,7 +1,7 @@
 # Frontend design and theming
 
 The web application uses local shadcn-style components built on Radix primitives,
-Tailwind 4, and feature-owned CSS Modules. The travel homepage presents Stayline
+Tailwind 4, and feature-owned CSS Modules. The travel homepage presents Best Holiday Packages
 branding, destination photography, and the existing hotel-search flow. Route
 files compose features; presentation does not move booking rules into the browser.
 
@@ -51,8 +51,8 @@ these values to utilities such as `bg-background`, `text-foreground`, and
 | ------------------------------------------------------------------------ | ----------------------------------------- |
 | `--background`, `--foreground`, `--card`                                 | Page and card surfaces with readable text |
 | `--primary`, `--primary-foreground`, `--text-link`                       | Theme-aware actions and links             |
-| `--brand`, `--accent-yellow`                                             | Stable brand accents across both modes    |
-| `--surface-subtle`, `--surface-blue`, `--surface-warm`                   | Secondary sections and panels             |
+| `--brand`, `--accent-brand`                                              | Charcoal brand panels and blue accents    |
+| `--surface-subtle`, `--surface-accent`, `--surface-warm`                 | Secondary sections and panels             |
 | `--text-secondary`, `--text-subtle`, `--muted-foreground`                | Supporting text                           |
 | `--border`, `--input`, `--ring`, `--destructive`                         | Control outlines, focus, and errors       |
 | `--search-button`, `--search-button-hover`, `--search-button-foreground` | Search action and its contrast pair       |
@@ -61,8 +61,16 @@ these values to utilities such as `bg-background`, `text-foreground`, and
 Use an existing semantic token when it describes the purpose. To add a new color,
 define its light and dark values together, add an `@theme inline` mapping if a
 Tailwind utility is needed, and check its foreground/background contrast in both
-modes. The brand blue remains stable; primary actions can use a lighter blue in
-dark mode with a contrasting foreground.
+modes. The brand accent is exactly `#00A7E1` in both themes, paired with charcoal
+panels and blue-tinted secondary surfaces. Blue actions use white foregrounds,
+while text links use a darker blue in light mode and a lighter blue in dark mode
+to maintain contrast. The shared `components/shared/site-logo.tsx` renders the
+supplied transparent `public/images/best-holiday-packages-logo.png` in both the
+header and footer. The original artwork is used in both themes without a backing
+box, border, recoloring, or cropping. Responsive sizing preserves its 1044 × 653
+aspect ratio, with a 180-pixel desktop width and a 128-pixel mobile width. Next.js
+optimizes image delivery for the displayed size. Page metadata and accessible
+navigation labels use the company name, Best Holiday Packages.
 
 Popover, dropdown, and dialog content renders in a portal under the document
 body. Style it with global semantic tokens so it inherits the active theme even
@@ -80,7 +88,7 @@ navigation preserves the selection, including trips to the hotel search and back
 The selection stays in memory only: a full page reload clears it, and it is not
 persisted to browser storage or an account.
 
-The visual design and Stayline branding do not imply membership, certification,
+The visual design and Best Holiday Packages branding do not imply membership, certification,
 financial protection, customer-review ratings, or a relationship with another
 travel business. Only display such claims after they are independently verified
 for the operating business.

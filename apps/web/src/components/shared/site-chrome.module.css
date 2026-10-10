@@ -5,8 +5,9 @@
 }
 
 .topbar {
-  color: #fff;
-  background: var(--brand);
+  color: var(--foreground);
+  background: var(--card);
+  border-bottom: 2px solid var(--accent-brand);
 }
 
 .topbarInner,
@@ -19,7 +20,8 @@
 
 .topbarInner {
   display: flex;
-  min-height: 78px;
+  min-height: 120px;
+  padding-block: 12px;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
@@ -29,27 +31,15 @@
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 7px;
-  color: inherit;
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -1.8px;
+  width: 180px;
   line-height: 1;
 }
 
-.brandIcon {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-}
-
-.brandIcon > svg:last-child {
-  position: absolute;
-  background: var(--brand);
-  fill: var(--brand);
+.brandImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 .benefits {
@@ -71,6 +61,7 @@
 
 .benefits svg {
   flex-shrink: 0;
+  color: var(--text-link);
 }
 
 .accountActions {
@@ -96,7 +87,7 @@
 
 .topbar a:focus-visible,
 .topbar button:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--ring);
   outline-offset: 4px;
 }
 
@@ -106,10 +97,10 @@
   justify-content: center;
   width: 38px;
   height: 38px;
-  border: 1px solid #ffffff80;
+  border: 1px solid var(--input);
   border-radius: 6px;
   background: transparent;
-  color: #fff;
+  color: var(--foreground);
 }
 
 .navigation {
@@ -205,7 +196,7 @@
 
 .dropdownPanel > a:hover,
 .dropdownPanel > a[data-highlighted] {
-  background: var(--surface-blue);
+  background: var(--surface-accent);
   color: var(--text-link);
 }
 
@@ -215,8 +206,8 @@
 
 .footer {
   margin-top: 64px;
-  border-top: 1px solid var(--border);
-  background: var(--surface-blue);
+  border-top: 2px solid var(--accent-brand);
+  background: var(--surface-accent);
   color: var(--foreground);
 }
 
@@ -225,15 +216,6 @@
   grid-template-columns: 1.8fr 1fr 1fr;
   gap: 64px;
   padding-block: 46px 40px;
-}
-
-.footerBrandColumn .brand {
-  color: var(--text-link);
-}
-
-.footerBrandColumn .brandIcon > svg:last-child {
-  background: var(--surface-blue);
-  fill: var(--surface-blue);
 }
 
 .footerBrandColumn p {
@@ -306,24 +288,11 @@
     width: calc(100% - 32px);
   }
   .topbarInner {
-    min-height: 72px;
+    min-height: 92px;
     gap: 12px;
   }
   .brand {
-    gap: 5px;
-    font-size: 28px;
-  }
-  .brandIcon {
-    width: 34px;
-    height: 34px;
-  }
-  .brandIcon > svg:first-child {
-    width: 34px;
-    height: 34px;
-  }
-  .brandIcon > svg:last-child {
-    width: 16px;
-    height: 16px;
+    width: 128px;
   }
   .accountActions {
     gap: 10px;
@@ -396,10 +365,6 @@
 }
 
 @media (max-width: 380px) {
-  .brand {
-    gap: 3px;
-    font-size: 24px;
-  }
   .accountActions {
     gap: 6px;
   }

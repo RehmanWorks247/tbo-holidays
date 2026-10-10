@@ -10,14 +10,14 @@ function ClerkSessionNavigation() {
   const { isSignedIn, isLoaded } = useAuth();
   if (!isLoaded)
     return (
-      <span className="text-xs text-white/80" aria-label="Loading account">
+      <span className="text-xs text-muted-foreground" aria-label="Loading account">
         Loading…
       </span>
     );
   if (isSignedIn)
     return (
       <div className="flex items-center gap-4">
-        <Link className="hidden text-xs text-white sm:inline" href="/account">
+        <Link className="hidden text-xs text-foreground sm:inline" href="/account">
           Account
         </Link>
         <UserButton />
@@ -28,7 +28,7 @@ function ClerkSessionNavigation() {
       asChild
       variant="outline"
       size="sm"
-      className="border-white/70 bg-transparent text-xs text-white hover:bg-white/15 hover:text-white"
+      className="bg-transparent text-xs text-foreground hover:bg-muted hover:text-foreground"
     >
       <Link href="/sign-in">Sign in</Link>
     </Button>
@@ -44,7 +44,7 @@ export function SessionNavigation() {
       asChild
       variant="outline"
       size="sm"
-      className="border-white/70 bg-transparent text-xs text-white hover:bg-white/15 hover:text-white"
+      className="bg-transparent text-xs text-foreground hover:bg-muted hover:text-foreground"
     >
       <Link href="/sign-in">Sign in</Link>
     </Button>

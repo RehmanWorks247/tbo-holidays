@@ -5,11 +5,63 @@ import { DomainError } from '../../common/errors/domain-error';
 import type { Environment } from '../../config/environment';
 import { tboStatusSchema } from './dto/tbo.schemas';
 
-export type TboReadOperation = 'Search' | 'PreBook' | 'Hoteldetails' | 'TBOHotelCodeList';
+const readOperations = ['Search', 'PreBook', 'HotelDetails', 'TBOHotelCodeList'] as const;
+
+export type TboReadOperation = (typeof readOperations)[number];
 
 class ReadFailure extends Error {
   constructor(readonly retryable: boolean) {
     super('Supplier read failed');
+  }
+}
+
+function invalidResponse(): DomainError {
+  return new DomainError(
+    'INVALID_SUPPLIER_RESPONSE',
+    'The supplier returned an unsupported response.',
+    502,
+  );
+}
+
+function assertSupplierStatus(operation: TboReadOperation, code: number): void {
+  // Search's no-availability payload is validated by the service, including any
+  // contradictory inventory. It must not be silently converted into success here.
+  if (code === 200 || (operation === 'Search' && code === 201)) return;
+  if (operation === 'PreBook' && (code === 201 || code === 207)) {
+    throw new DomainError('HOTEL_NOT_AVAILABLE', 'This hotel rate is no longer available.', 409);
+  }
+  if (operation === 'PreBook' && code === 315) {
+    throw new DomainError('RATE_EXPIRED', 'Please search again to refresh this room.', 409);
+  }
+  switch (code) {
+    case 400:
+      throw new DomainError(
+        'SUPPLIER_REQUEST_REJECTED',
+        'The supplier could not accept the inventory request.',
+        502,
+      );
+    case 401:
+      throw new DomainError(
+        'SUPPLIER_AUTHENTICATION_FAILED',
+        'The supplier connection requires account configuration.',
+        503,
+      );
+    case 402:
+      throw new DomainError(
+        'SUPPLIER_ACCOUNT_BLOCKED',
+        'The supplier account is currently unavailable.',
+        503,
+      );
+    case 300:
+      throw new DomainError(
+        'SUPPLIER_INSUFFICIENT_BALANCE',
+        'The supplier account cannot currently complete this request.',
+        503,
+      );
+    case 429:
+      throw new ReadFailure(true);
+    default:
+      throw new ReadFailure(false);
   }
 }
 
@@ -21,6 +73,13 @@ export class TboClient {
 
   /** Only side-effect-free operations are allowed here, regardless of HTTP verb. */
   async read(operation: TboReadOperation, body: Record<string, unknown>): Promise<unknown> {
+    if (!readOperations.includes(operation)) {
+      throw new DomainError(
+        'SUPPLIER_OPERATION_NOT_ALLOWED',
+        'This supplier operation is not supported by the read client.',
+        500,
+      );
+    }
     const baseUrl = this.config.get('TBO_BASE_URL', { infer: true });
     const username = this.config.get('TBO_USERNAME', { infer: true });
     const password = this.config.get('TBO_PASSWORD', { infer: true });
@@ -58,12 +117,21 @@ export class TboClient {
           redirect: 'error',
         });
         if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            assertSupplierStatus(operation, 401);
+          }
           throw new ReadFailure([429, 500, 502, 503, 504].includes(response.status));
         }
-        const payload: unknown = await response.json();
+        let payload: unknown;
+        try {
+          payload = await response.json();
+        } catch (error: unknown) {
+          if (error instanceof SyntaxError) throw invalidResponse();
+          throw error;
+        }
         const envelope = tboStatusSchema.safeParse(payload);
-        if (!envelope.success) throw new ReadFailure(false);
-        if (envelope.data.Status.Code !== 200) throw new ReadFailure(false);
+        if (!envelope.success) throw invalidResponse();
+        assertSupplierStatus(operation, envelope.data.Status.Code);
         this.logger.debug({ supplier: 'TBO', operation, durationMs: Date.now() - startedAt });
         return payload;
       } catch (error: unknown) {
@@ -73,6 +141,7 @@ export class TboClient {
             : error instanceof Error && (error.name === 'AbortError' || error instanceof TypeError);
         // Do not log the upstream error/body: it can contain credentials, PII, or booking codes.
         this.logger.warn({ supplier: 'TBO', operation, attempt: attempt + 1, retryable });
+        if (error instanceof DomainError) throw error;
         if (!retryable || attempt === retries) {
           throw new DomainError(
             'SUPPLIER_UNAVAILABLE',

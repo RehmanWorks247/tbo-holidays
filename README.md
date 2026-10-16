@@ -2,7 +2,7 @@
 
 A TypeScript hotel-booking scaffold built as a pnpm/Turborepo monorepo. Next.js handles the customer experience; one NestJS application owns authentication, supplier access, pricing, payments and durable booking workflows.
 
-This is production-oriented **structure**, with working validation, persistence boundaries and failure handling. Live bookings are intentionally unavailable until the account-specific TBO contract and a real payment gateway are implemented and verified. There are no fake hotel results or successful payment simulations in the application.
+This is production-oriented **structure**, with working validation, persistence boundaries and failure handling. Live bookings are intentionally unavailable until the account-specific TBO contract and a real payment gateway are implemented and verified. An explicit, read-only hotel preview provides fictional inventory for development; it never simulates a successful booking or payment.
 
 ## Stack
 
@@ -41,6 +41,17 @@ Open the web app at [localhost:3000](http://localhost:3000). The API prefix is [
 
 Public pages build and render without Clerk or supplier credentials. Protected screens explain the missing authentication setup. The API requires PostgreSQL and Redis at startup; requests for an unconfigured external integration return a named error.
 
+To explore realistic hotel results without supplier credentials, start PostgreSQL
+with `pnpm infra:up`, run `pnpm db:prepare:mock`, then `pnpm dev:mock` and open
+[the hotel preview](http://localhost:3000/hotels). The preview needs PostgreSQL;
+Redis is not used by its read-only API.
+This explicitly starts a separate read-only API composition, using the same hotel routes
+and public response contracts. The repeatable seed stores 36 fictional hotels across
+Dubai, London, Antalya and Bali in dedicated PostgreSQL tables, with rates for all
+six supported currencies. Filters, sorting and pagination run in the API; selections are
+shareable in the URL. Demo prices, reviews and photos are labelled, and booking is
+disabled. Mock mode is rejected in production. See [hotel preview and search](docs/hotel-preview.md).
+
 ## Repository map
 
 ```text
@@ -74,21 +85,31 @@ Destination cards are editorial inspiration, not live hotel offers. Saved inspir
 
 ## Configuration and integration boundaries
 
+The header currency and language selectors save browser preferences. Currency
+changes request backend search prices in one of the six supported currencies.
+All 45 language options cover the site's homepage editorial content, navigation,
+search, hotel results, account, checkout and booking pages, validation messages,
+and booking/payment status labels. Dates and prices use the selected locale;
+Arabic and Hebrew use right-to-left layouts. Supplier-provided descriptions and
+external provider screens follow the language available from those providers. See
+[selector behavior](docs/theming.md#currency-and-language-selectors).
+
 Backend settings live in root `.env`; Next.js settings live in `apps/web/.env.local`. Both are ignored by Git. The two `.env.example` files document supported variables.
 
 - **Clerk:** set the backend verification secret (or JWT public key), frontend publishable key and frontend server secret. Set explicit authorized frontend origins. Internal users are provisioned after session verification. Admin rights come from the database role, never editable profile fields.
-- **TBO:** supply your assigned HTTPS base URL and credentials. Read [the integration notes](apps/api/src/modules/tbo/INTEGRATION.md) before enabling `TBO_READS_ENABLED`. Candidate REST read mappings require account-specific validation. Supplier booking, lookup and cancellation remain gated until a certified implementation replaces their explicit errors.
+- **TBO:** hotel search, hotel details and PreBook price rechecks implement the supplied JSON v2.1 guide, documented in the [TBO API reference](apps/api/src/modules/tbo/API_REFERENCE.md) and [backend agent guide](apps/api/AGENTS.md). The backend validates supplier identities/currency, preserves cancellation policies and rate terms, and enforces minimum selling prices. Reads remain disabled by default; synthetic fixtures do not replace account sandbox verification. Supply your assigned HTTPS base URL and credentials, and read [the integration notes](apps/api/src/modules/tbo/INTEGRATION.md) before enabling `TBO_READS_ENABLED`. Customer-facing presentation of the new terms is still required before sales. Supplier booking, lookup and cancellation remain explicitly disabled.
 - **Payments:** `PAYMENT_PROVIDER=disabled` is the only shipped adapter. Add a gateway behind `PaymentProvider`, implement raw-body webhook verification, lookup and refund handling, and exercise the integration tests before enabling checkout. No payment credentials are invented.
 - **Jobs:** `JOBS_ENABLED=false` by default. Enabling it starts the durable outbox publisher and BullMQ worker. Notifications, payment reconciliation and refund handlers currently report configuration-required errors, preserving pending work for intervention.
 - **Prices:** the backend computes minor-unit totals and stores immutable quotes and booking snapshots. Currency conversion is not implemented. The six accepted currencies currently share two decimal places.
 
-Destination search initially accepts the supplier's **city code**. Catalogue synchronization/autocomplete is an explicit extension point. The date-range picker checks dates and maximum stay; live inventory always comes from the supplier.
+Live destination search accepts the supplier's **city code**. Catalogue synchronization/autocomplete is an explicit extension point. The preview instead offers named destination choices from its backend inventory. The date-range picker checks dates and maximum stay; live inventory always comes from the supplier.
 
 ## Commands
 
 | Command                             | Purpose                                                           |
 | ----------------------------------- | ----------------------------------------------------------------- |
 | `pnpm dev`                          | Generate Prisma and shared contracts, then run web and API        |
+| `pnpm dev:mock`                     | Run web plus read-only hotel API backed by seeded PostgreSQL      |
 | `pnpm build`                        | Build shared contracts, API and web                               |
 | `pnpm lint` / `pnpm lint:fix`       | Check/fix ESLint rules and import order                           |
 | `pnpm typecheck`                    | Validate strict application and contract types                    |
@@ -98,6 +119,8 @@ Destination search initially accepts the supplier's **city code**. Catalogue syn
 | `pnpm db:generate`                  | Regenerate Prisma Client                                          |
 | `pnpm db:migrate`                   | Create a development migration after schema edits                 |
 | `pnpm db:deploy`                    | Apply checked-in migrations                                       |
+| `pnpm db:prepare:mock`              | Generate clients, build contracts, migrate and seed local preview |
+| `pnpm db:seed:mock`                 | Repeat the local preview seed without duplicating records         |
 | `pnpm db:studio`                    | Open Prisma Studio                                                |
 | `pnpm infra:up` / `pnpm infra:down` | Start/stop local infrastructure; preserve data volumes            |
 

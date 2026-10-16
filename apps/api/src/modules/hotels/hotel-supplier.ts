@@ -1,4 +1,9 @@
-import type { Hotel, HotelSearchRequest } from '@hotel/contracts';
+import type {
+  CancellationPolicy,
+  Hotel,
+  HotelRateTerms,
+  HotelSearchRequest,
+} from '@hotel/contracts';
 
 export const HOTEL_SUPPLIER = Symbol('HOTEL_SUPPLIER');
 
@@ -8,6 +13,8 @@ export interface SupplierPrice {
   baseAmount: number;
   taxAmount: number;
   feeAmount: number;
+  /** Supplier sales floor in the same currency, not an additional supplier charge. */
+  minimumSellingAmount?: number;
 }
 
 export interface SupplierRate {
@@ -17,7 +24,18 @@ export interface SupplierRate {
   mealType?: string;
   refundable: boolean;
   price: SupplierPrice;
-  cancellationPolicies: { from: string; amount: number; currency: string }[];
+  cancellationPolicies: CancellationPolicy[];
+  terms?: HotelRateTerms;
+}
+
+/** One canonical snapshot for quote acceptance and later fulfillment comparison. */
+export function supplierPolicySnapshot(rate: SupplierRate) {
+  return {
+    refundable: rate.refundable,
+    ...(rate.mealType ? { mealType: rate.mealType } : {}),
+    cancellationPolicies: rate.cancellationPolicies,
+    ...(rate.terms ? { terms: rate.terms } : {}),
+  };
 }
 
 export interface SupplierSearchResult {

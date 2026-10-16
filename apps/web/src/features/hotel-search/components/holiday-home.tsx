@@ -21,158 +21,98 @@ import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useHolidayInspiration } from '@/features/hotel-search/components/holiday-inspiration-provider';
 import { HotelSearchForm } from '@/features/hotel-search/components/hotel-search-form';
+import { usePageMessages } from '@/providers/use-page-messages';
 
 import styles from './holiday-home.module.css';
 
 const destinations = [
-  {
-    id: 'greece',
-    name: 'Greek Islands',
-    country: 'Greece',
-    image: 'hero-greece.jpg',
-    tag: 'Blue skies, bluer seas',
-    category: 'Beach escapes',
-    description:
-      'Whitewashed villages, little waterfront tavernas and a new shade of blue around every corner. Slow down and find your own slice of island life.',
-    highlights: ['Sunset strolls', 'Hidden coves', 'Island hopping'],
-  },
-  {
-    id: 'turkey',
-    name: 'Turkish Riviera',
-    country: 'Turkey',
-    image: 'turkey.jpg',
-    tag: 'A little bit of everything',
-    category: 'Beach escapes',
-    description:
-      'Spend your days between pine-fringed bays and character-filled old towns. Make room for lazy beach mornings and a little adventure.',
-    highlights: ['Turquoise coastline', 'Local bazaars', 'Beach days'],
-  },
-  {
-    id: 'italy',
-    name: 'Amalfi Coast',
-    country: 'Italy',
-    image: 'italy.jpg',
-    tag: 'Take the scenic route',
-    category: 'Beach escapes',
-    description:
-      'Colourful cliffside towns, lemon groves and long lunches overlooking the sea. Take the coastal road and let the next beautiful view set the pace.',
-    highlights: ['Coastal villages', 'Italian flavours', 'Boat trips'],
-  },
-  {
-    id: 'tropical',
-    name: 'Tropical escapes',
-    country: 'Somewhere far away',
-    image: 'beach.jpg',
-    tag: 'Your out-of-office escape',
-    category: 'Faraway favourites',
-    description:
-      'Trade the everyday for warm waters and wonderfully unhurried days. Think barefoot walks, a book by the beach and uninterrupted ocean views. From the Caribbean to the Indian Ocean, find your own happy place.',
-    highlights: ['Palm-lined beaches', 'Island hideaways', 'Ocean sunsets'],
-  },
-  {
-    id: 'madrid',
-    name: 'Madrid',
-    country: 'Spain',
-    image: 'city.jpg',
-    tag: 'Get lost in a good way',
-    category: 'City breaks',
-    description:
-      'Follow lively streets past grand architecture, stop for something delicious and watch the city come to life as the sun sets. Make time for a gallery, a long lunch and a stroll in the park.',
-    highlights: ['Lively streets', 'Café culture', 'Rooftop views'],
-  },
-  {
-    id: 'dubai',
-    name: 'Dubai',
-    country: 'United Arab Emirates',
-    image: 'dubai.jpg',
-    tag: 'Sunshine meets skyline',
-    category: 'City breaks',
-    description:
-      'Pair big-city exploring with time by the beach. Discover waterfront walks, neighbourhood cafés and spectacular views that carry on after sunset.',
-    highlights: ['City skylines', 'Beach afternoons', 'Desert adventures'],
-  },
+  { id: 'greece', image: 'hero-greece.jpg', category: 'beach' },
+  { id: 'turkey', image: 'turkey.jpg', category: 'beach' },
+  { id: 'italy', image: 'italy.jpg', category: 'beach' },
+  { id: 'tropical', image: 'beach.jpg', category: 'faraway' },
+  { id: 'madrid', image: 'city.jpg', category: 'city' },
+  { id: 'dubai', image: 'dubai.jpg', category: 'city' },
 ] as const;
 
 type Destination = (typeof destinations)[number];
-type Category = 'All destinations' | Destination['category'];
-const categories: { name: Category; icon: typeof Compass }[] = [
-  { name: 'All destinations', icon: Compass },
-  { name: 'Beach escapes', icon: Palmtree },
-  { name: 'City breaks', icon: Building2 },
-  { name: 'Faraway favourites', icon: Sun },
+type Category = 'all' | Destination['category'];
+const categories: { id: Category; icon: typeof Compass }[] = [
+  { id: 'all', icon: Compass },
+  { id: 'beach', icon: Palmtree },
+  { id: 'city', icon: Building2 },
+  { id: 'faraway', icon: Sun },
 ];
 
 export function HolidayHome() {
-  const [category, setCategory] = useState<Category>('All destinations');
+  const {
+    messages: { home: copy },
+    locale,
+    dir,
+    t,
+  } = usePageMessages();
+  const [category, setCategory] = useState<Category>('all');
   const { savedIds, toggleSaved } = useHolidayInspiration();
   const [selected, setSelected] = useState<Destination | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const lastTrigger = useRef<HTMLButtonElement | null>(null);
   const focusSearchAfterClose = useRef(false);
-  const filtered = destinations.filter(
-    (item) => category === 'All destinations' || item.category === category,
-  );
-  const visible = showAll || category !== 'All destinations' ? filtered : filtered.slice(0, 4);
+  const filtered = destinations.filter((item) => category === 'all' || item.category === category);
+  const visible = showAll || category !== 'all' ? filtered : filtered.slice(0, 4);
   const saved = destinations.filter((item) => savedIds.includes(item.id));
+  const selectedCopy = selected ? copy.places[selected.id] : null;
 
   function explore(destination: Destination, trigger: HTMLButtonElement) {
     lastTrigger.current = trigger;
     setSelected(destination);
   }
   return (
-    <div className={styles.home}>
-      <section id="hotel-search" className={styles.searchBand} aria-label="Find your hotel">
+    <div className={styles.home} lang={locale} dir={dir}>
+      <section id="hotel-search" className={styles.searchBand} aria-label={copy.search.label}>
         <div className={styles.searchTabs}>
           <span className={styles.activeTab}>
-            <BedDouble size={19} /> Hotels
+            <BedDouble size={19} aria-hidden="true" /> {copy.search.hotels}
           </span>
           <a href="#holiday-inspiration">
-            <Sparkles size={18} /> Inspire me <span>Find your happy</span>
+            <Sparkles size={18} aria-hidden="true" /> {copy.search.inspire}{' '}
+            <span>{copy.search.findHappy}</span>
           </a>
-          <p>Your next getaway starts here.</p>
+          <p>{copy.search.tagline}</p>
         </div>
         <HotelSearchForm />
       </section>
 
-      <section className={styles.heroGrid} aria-label="Your next holiday">
+      <section className={styles.heroGrid} aria-label={copy.hero.label}>
         <div className={styles.mainHero}>
           <div className={styles.heroCopy}>
             <span className={styles.heroEyebrow}>
-              <Sun size={15} /> LESS EVERYDAY. MORE GETAWAY.
+              <Sun size={15} aria-hidden="true" /> {copy.hero.eyebrow}
             </span>
-            <h1>
-              Your next
-              <br />
-              happy place.
-            </h1>
-            <p>
-              Big adventures. Little escapes.
-              <br />
-              Find a stay you’ll love.
-            </p>
+            <h1>{copy.hero.title}</h1>
+            <p>{copy.hero.description}</p>
             <a href="#destinations" className={styles.heroButton}>
-              Find my escape <ArrowRight size={18} />
+              {copy.hero.action}{' '}
+              <ArrowRight size={18} className={styles.forwardIcon} aria-hidden="true" />
             </a>
-            <span className={styles.heroFootnote}>Good times are just around the corner.</span>
+            <span className={styles.heroFootnote}>{copy.hero.footnote}</span>
           </div>
           <div className={styles.heroImage}>
             <Image
               src="/images/hero-greece.jpg"
-              alt="Whitewashed Santorini houses overlooking the sea at sunset"
+              alt={copy.hero.imageAlt}
               fill
               priority
               sizes="(max-width: 640px) 50vw, (max-width: 900px) 55vw, 430px"
             />
             <span className={styles.imageLocation}>
-              <MapPin size={14} /> Santorini, Greece
+              <MapPin size={14} aria-hidden="true" /> {copy.hero.location}
             </span>
             <div className={styles.sunBadge}>
-              <Sun size={24} strokeWidth={1.5} />
+              <Sun size={24} strokeWidth={1.5} aria-hidden="true" />
               <span>
-                Good vibes.
+                {copy.hero.badgeTop}
                 <br />
-                <strong>Great stays.</strong>
+                <strong>{copy.hero.badgeBottom}</strong>
               </span>
             </div>
           </div>
@@ -183,23 +123,20 @@ export function HolidayHome() {
         >
           <Image
             src="/images/beach.jpg"
-            alt="Palm trees beside a tropical beach at sunset"
+            alt={copy.hero.beachImageAlt}
             fill
             sizes="(max-width: 900px) 100vw, 380px"
           />
           <span className={styles.sideHeroShade} />
           <span className={styles.sideHeroContent}>
             <span className={styles.smallPill}>
-              <Sun size={14} /> A DOSE OF VITAMIN SEA
+              <Sun size={14} aria-hidden="true" /> {copy.hero.beachEyebrow}
             </span>
-            <strong>
-              Somewhere
-              <br />
-              sunny is calling.
-            </strong>
-            <span>Answer with a beach escape.</span>
+            <strong>{copy.hero.beachTitle}</strong>
+            <span>{copy.hero.beachDescription}</span>
             <span className={styles.sideHeroLink}>
-              Take me there <ArrowRight size={18} />
+              {copy.hero.beachAction}{' '}
+              <ArrowRight size={18} className={styles.forwardIcon} aria-hidden="true" />
             </span>
           </span>
         </button>
@@ -208,53 +145,36 @@ export function HolidayHome() {
       <section id="holiday-inspiration" className={styles.inspirationSection}>
         <div className={styles.sectionHeading}>
           <div>
-            <p className={styles.eyebrow}>A CHANGE OF SCENERY</p>
-            <h2>Whatever your holiday looks like</h2>
+            <p className={styles.eyebrow}>{copy.inspiration.eyebrow}</p>
+            <h2>{copy.inspiration.title}</h2>
           </div>
-          <span className={styles.sectionAside}>We’ve got a little inspiration for that.</span>
+          <span className={styles.sectionAside}>{copy.inspiration.aside}</span>
         </div>
         <div className={styles.inspirationGrid}>
           {[
             {
               destination: destinations[1],
               image: 'turkey.jpg',
-              alt: 'Turquoise waters of the Turkish Mediterranean coast',
-              eyebrow: 'SUNSHINE ON YOUR MIND?',
-              title: (
-                <>
-                  Life’s better
-                  <br />
-                  by the beach.
-                </>
-              ),
-              cta: 'Explore beach escapes',
+              alt: copy.inspiration.beachImageAlt,
+              eyebrow: copy.inspiration.beachEyebrow,
+              title: copy.inspiration.beachTitle,
+              cta: copy.inspiration.beachAction,
             },
             {
               destination: destinations[4],
               image: 'city.jpg',
-              alt: 'Madrid’s grand architecture at sunset',
-              eyebrow: 'NEW STREETS. NEW STORIES.',
-              title: (
-                <>
-                  A little city.
-                  <br />A lot to discover.
-                </>
-              ),
-              cta: 'Find your city break',
+              alt: copy.inspiration.cityImageAlt,
+              eyebrow: copy.inspiration.cityEyebrow,
+              title: copy.inspiration.cityTitle,
+              cta: copy.inspiration.cityAction,
             },
             {
               destination: destinations[3],
               image: 'pool.jpg',
-              alt: 'A peaceful resort pool at dusk',
-              eyebrow: 'MAKE TIME FOR YOU',
-              title: (
-                <>
-                  Do less.
-                  <br />
-                  Enjoy a little more.
-                </>
-              ),
-              cta: 'Discover faraway favourites',
+              alt: copy.inspiration.farawayImageAlt,
+              eyebrow: copy.inspiration.farawayEyebrow,
+              title: copy.inspiration.farawayTitle,
+              cta: copy.inspiration.farawayAction,
             },
           ].map((item) => (
             <button
@@ -274,7 +194,7 @@ export function HolidayHome() {
                 <strong>{item.title}</strong>
                 <span className={styles.inspirationCta}>
                   {item.cta}
-                  <ArrowRight size={17} />
+                  <ArrowRight size={17} className={styles.forwardIcon} aria-hidden="true" />
                 </span>
               </span>
             </button>
@@ -282,30 +202,30 @@ export function HolidayHome() {
         </div>
       </section>
 
-      <section className={styles.benefitStrip} aria-label="Why Best Holiday Packages">
+      <section className={styles.benefitStrip} aria-label={copy.benefits.label}>
         <div className={styles.benefitIntro}>
-          <Heart size={24} />
-          <strong>A little more to love</strong>
+          <Heart size={24} aria-hidden="true" />
+          <strong>{copy.benefits.title}</strong>
         </div>
         <div>
-          <Compass size={25} />
+          <Compass size={25} aria-hidden="true" />
           <span>
-            <strong>Find your kind of getaway</strong>
-            <small>From beach days to city stays</small>
+            <strong>{copy.benefits.getawayTitle}</strong>
+            <small>{copy.benefits.getawayDescription}</small>
           </span>
         </div>
         <div>
-          <ShieldCheck size={25} />
+          <ShieldCheck size={25} aria-hidden="true" />
           <span>
-            <strong>Know before you go</strong>
-            <small>Review your price before booking</small>
+            <strong>{copy.benefits.pricingTitle}</strong>
+            <small>{copy.benefits.pricingDescription}</small>
           </span>
         </div>
         <div>
-          <BedDouble size={25} />
+          <BedDouble size={25} aria-hidden="true" />
           <span>
-            <strong>All your stays, together</strong>
-            <small>Keep your trips in one place</small>
+            <strong>{copy.benefits.staysTitle}</strong>
+            <small>{copy.benefits.staysDescription}</small>
           </span>
         </div>
       </section>
@@ -313,34 +233,36 @@ export function HolidayHome() {
       <section id="destinations">
         <div className={styles.sectionHeading}>
           <div>
-            <p className={styles.eyebrow}>YOUR NEXT “WISH YOU WERE HERE”</p>
-            <h2>A world of happy places</h2>
-            <p className={styles.sectionDescription}>
-              Some places just have that holiday feeling. Find yours.
-            </p>
+            <p className={styles.eyebrow}>{copy.destinations.eyebrow}</p>
+            <h2>{copy.destinations.title}</h2>
+            <p className={styles.sectionDescription}>{copy.destinations.description}</p>
           </div>
           <a
             href="#saved-destinations"
             className={styles.savedLink}
             onClick={() => setSavedOpen(true)}
           >
-            <Heart size={17} />
-            <span>Saved inspiration {saved.length ? `(${saved.length})` : ''}</span>
+            <Heart size={17} aria-hidden="true" />
+            <span>
+              {saved.length
+                ? t(copy.destinations.savedLinkCount, { count: saved.length })
+                : copy.destinations.savedLink}
+            </span>
           </a>
         </div>
-        <div className={styles.filterTabs} aria-label="Destination categories">
-          {categories.map(({ name, icon: Icon }) => (
+        <div className={styles.filterTabs} aria-label={copy.destinations.categoriesLabel}>
+          {categories.map(({ id, icon: Icon }) => (
             <button
-              key={name}
-              aria-pressed={category === name}
-              className={category === name ? styles.selectedFilter : undefined}
+              key={id}
+              aria-pressed={category === id}
+              className={category === id ? styles.selectedFilter : undefined}
               onClick={() => {
-                setCategory(name);
+                setCategory(id);
                 setShowAll(false);
               }}
             >
-              <Icon size={16} />
-              {name}
+              <Icon size={16} aria-hidden="true" />
+              {copy.categories[id]}
             </button>
           ))}
         </div>
@@ -351,11 +273,13 @@ export function HolidayHome() {
                 <button
                   className={styles.imageButton}
                   onClick={(event) => explore(destination, event.currentTarget)}
-                  aria-label={`Explore ${destination.name}`}
+                  aria-label={t(copy.destinations.explore, {
+                    name: copy.places[destination.id].name,
+                  })}
                 >
                   <Image
                     src={`/images/${destination.image}`}
-                    alt={`${destination.name} scenery`}
+                    alt={copy.places[destination.id].imageAlt}
                     fill
                     sizes="(max-width: 640px) 50vw, (max-width: 900px) 45vw, 300px"
                   />
@@ -364,14 +288,20 @@ export function HolidayHome() {
                   className={`${styles.saveButton} ${savedIds.includes(destination.id) ? styles.isSaved : ''}`}
                   onClick={() => toggleSaved(destination.id)}
                   aria-pressed={savedIds.includes(destination.id)}
-                  aria-label={`${savedIds.includes(destination.id) ? 'Unsave' : 'Save'} ${destination.name}`}
+                  aria-label={t(
+                    savedIds.includes(destination.id)
+                      ? copy.destinations.unsave
+                      : copy.destinations.save,
+                    { name: copy.places[destination.id].name },
+                  )}
                 >
                   <Heart
                     size={20}
+                    aria-hidden="true"
                     fill={savedIds.includes(destination.id) ? 'currentColor' : 'none'}
                   />
                 </button>
-                <span className={styles.destinationTag}>{destination.tag}</span>
+                <span className={styles.destinationTag}>{copy.places[destination.id].tag}</span>
               </div>
               <button
                 className={styles.destinationDetails}
@@ -379,28 +309,30 @@ export function HolidayHome() {
               >
                 <span>
                   <span className={styles.destinationCountry}>
-                    <MapPin size={12} />
-                    {destination.country}
+                    <MapPin size={12} aria-hidden="true" />
+                    {copy.places[destination.id].country}
                   </span>
-                  <strong>{destination.name}</strong>
-                  <span className={styles.exploreText}>Explore destination</span>
+                  <strong>{copy.places[destination.id].name}</strong>
+                  <span className={styles.exploreText}>{copy.destinations.exploreDestination}</span>
                 </span>
                 <span className={styles.circleArrow}>
-                  <ArrowRight size={19} />
+                  <ArrowRight size={19} className={styles.forwardIcon} aria-hidden="true" />
                 </span>
               </button>
             </article>
           ))}
         </div>
-        {category === 'All destinations' ? (
+        {category === 'all' ? (
           <button className={styles.seeMore} onClick={() => setShowAll((value) => !value)}>
-            {showAll ? 'Show fewer destinations' : 'More places to fall in love with'}
-            <ChevronDown className={showAll ? styles.rotated : undefined} size={18} />
+            {showAll ? copy.destinations.showFewer : copy.destinations.showMore}
+            <ChevronDown
+              className={showAll ? styles.rotated : undefined}
+              size={18}
+              aria-hidden="true"
+            />
           </button>
         ) : null}
-        <p className={styles.editorialNote}>
-          A little inspiration for your next trip. Search your dates for available hotels.
-        </p>
+        <p className={styles.editorialNote}>{copy.destinations.note}</p>
       </section>
 
       <section id="saved-destinations" className={styles.savedSection}>
@@ -411,11 +343,17 @@ export function HolidayHome() {
           onClick={() => setSavedOpen((open) => !open)}
         >
           <span>
-            <Heart size={20} />
-            <strong>Your holiday daydreams</strong>
-            <span className={styles.savedCount}>{saved.length} saved</span>
+            <Heart size={20} aria-hidden="true" />
+            <strong>{copy.saved.title}</strong>
+            <span className={styles.savedCount}>
+              {t(copy.saved.count, { count: saved.length })}
+            </span>
           </span>
-          <ChevronDown size={20} className={savedOpen ? styles.rotated : undefined} />
+          <ChevronDown
+            size={20}
+            className={savedOpen ? styles.rotated : undefined}
+            aria-hidden="true"
+          />
         </button>
         <div id="saved-inspiration-content" hidden={!savedOpen}>
           {saved.length ? (
@@ -425,28 +363,25 @@ export function HolidayHome() {
                   <button onClick={(event) => explore(destination, event.currentTarget)}>
                     <Image src={`/images/${destination.image}`} alt="" width={70} height={56} />
                     <span>
-                      {destination.name}
-                      <small>{destination.country}</small>
+                      {copy.places[destination.id].name}
+                      <small>{copy.places[destination.id].country}</small>
                     </span>
                   </button>
                   <button
                     onClick={() => toggleSaved(destination.id)}
-                    aria-label={`Remove ${destination.name} from saved inspiration`}
+                    aria-label={t(copy.saved.remove, { name: copy.places[destination.id].name })}
                   >
-                    <Heart size={18} fill="currentColor" />
+                    <Heart size={18} fill="currentColor" aria-hidden="true" />
                   </button>
                 </div>
               ))}
             </div>
           ) : (
-            <p className={styles.savedEmpty}>
-              Found somewhere you love? Tap the heart on a destination to keep your inspiration
-              together during this visit.
-            </p>
+            <p className={styles.savedEmpty}>{copy.saved.empty}</p>
           )}
         </div>
         <span className="sr-only" role="status">
-          {saved.length} {saved.length === 1 ? 'destination' : 'destinations'} saved for this visit.
+          {t(copy.saved.announcement, { count: saved.length })}
         </span>
       </section>
 
@@ -456,64 +391,54 @@ export function HolidayHome() {
           <Palmtree size={94} strokeWidth={1.15} />
         </div>
         <div>
-          <p className={styles.eyebrow}>OUT OF OFFICE. INTO YOUR ELEMENT.</p>
-          <h2>Good things start with a getaway.</h2>
-          <p>A change of pace, a new favourite place. Where will you go next?</p>
+          <p className={styles.eyebrow}>{copy.escape.eyebrow}</p>
+          <h2>{copy.escape.title}</h2>
+          <p>{copy.escape.description}</p>
         </div>
         <a href="#hotel-search" className={styles.primaryLink}>
-          Let’s find your stay <Search size={18} />
+          {copy.escape.action} <Search size={18} aria-hidden="true" />
         </a>
       </section>
 
       <section id="travel-help" className={styles.helpSection}>
         <div>
-          <p className={styles.eyebrow}>A LITTLE HELP ALONG THE WAY</p>
-          <h2>All set for your next stay?</h2>
-          <p>The answers to a few things you might be wondering.</p>
+          <p className={styles.eyebrow}>{copy.help.eyebrow}</p>
+          <h2>{copy.help.title}</h2>
+          <p>{copy.help.description}</p>
           <a href="#hotel-search">
-            Start exploring <ArrowRight size={16} />
+            {copy.help.action}{' '}
+            <ArrowRight size={16} className={styles.forwardIcon} aria-hidden="true" />
           </a>
         </div>
         <div className={styles.faqList}>
           <details>
             <summary>
-              How do I find a hotel?
-              <ChevronDown size={18} />
+              {copy.help.searchQuestion}
+              <ChevronDown size={18} aria-hidden="true" />
             </summary>
-            <p>
-              Enter a destination code, choose your check-in and check-out dates, and add your
-              guests. Set the lead guest’s nationality and your preferred currency in the guest
-              panel, then select Search.
-            </p>
+            <p>{copy.help.searchAnswer}</p>
           </details>
           <details>
             <summary>
-              When is my price confirmed?
-              <ChevronDown size={18} />
+              {copy.help.priceQuestion}
+              <ChevronDown size={18} aria-hidden="true" />
             </summary>
-            <p>
-              Your room price and availability are checked again before booking. You can review the
-              current total and the room’s cancellation conditions before proceeding.
-            </p>
+            <p>{copy.help.priceAnswer}</p>
           </details>
           <details>
             <summary>
-              Can I travel with children or book multiple rooms?
-              <ChevronDown size={18} />
+              {copy.help.roomsQuestion}
+              <ChevronDown size={18} aria-hidden="true" />
             </summary>
-            <p>
-              You can search for up to four rooms. Add the adults and children in each room,
-              including children’s ages, so your search reflects everyone travelling.
-            </p>
+            <p>{copy.help.roomsAnswer}</p>
           </details>
           <details>
             <summary>
-              Where can I find my booking?
-              <ChevronDown size={18} />
+              {copy.help.bookingQuestion}
+              <ChevronDown size={18} aria-hidden="true" />
             </summary>
             <p>
-              Sign in and open <a href="/bookings">My bookings</a> to view your stay and its current
-              status. Your hotel is confirmed when the booking status shows confirmation.
+              {copy.help.bookingAnswer} <a href="/bookings">{copy.help.myBookings}</a>
             </p>
           </details>
         </div>
@@ -527,6 +452,9 @@ export function HolidayHome() {
       >
         <DialogContent
           className={styles.destinationDialog}
+          lang={locale}
+          dir={dir}
+          closeLabel={copy.dialog.close}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             if (focusSearchAfterClose.current) {
@@ -539,28 +467,30 @@ export function HolidayHome() {
             }
           }}
         >
-          {selected ? (
+          {selected && selectedCopy ? (
             <>
               <div className={styles.dialogImage}>
                 <Image
                   src={`/images/${selected.image}`}
-                  alt={`${selected.name} scenery`}
+                  alt={selectedCopy.imageAlt}
                   fill
                   sizes="(max-width: 640px) 100vw, 600px"
                 />
-                <span className={styles.dialogEyebrow}>A little travel inspiration</span>
+                <span className={styles.dialogEyebrow}>{copy.dialog.eyebrow}</span>
               </div>
               <div className={styles.dialogContent}>
-                <p className={styles.eyebrow}>{selected.country}</p>
-                <DialogTitle className={styles.dialogTitle}>Hello, {selected.name}.</DialogTitle>
+                <p className={styles.eyebrow}>{selectedCopy.country}</p>
+                <DialogTitle className={styles.dialogTitle}>
+                  {t(copy.dialog.title, { name: selectedCopy.name })}
+                </DialogTitle>
                 <DialogDescription className={styles.dialogDescription}>
-                  {selected.description}
+                  {selectedCopy.description}
                 </DialogDescription>
                 <ul className={styles.highlights}>
-                  {selected.highlights.map((item) => (
-                    <li key={item}>
-                      <Check size={16} />
-                      {item}
+                  {(['highlightOne', 'highlightTwo', 'highlightThree'] as const).map((key) => (
+                    <li key={key}>
+                      <Check size={16} aria-hidden="true" />
+                      {selectedCopy[key]}
                     </li>
                   ))}
                 </ul>
@@ -572,18 +502,18 @@ export function HolidayHome() {
                     setSelected(null);
                   }}
                 >
-                  Plan your next stay <ArrowRight size={18} />
+                  {copy.dialog.action}{' '}
+                  <ArrowRight size={18} className={styles.forwardIcon} aria-hidden="true" />
                 </a>
-                <p className={styles.dialogNote}>
-                  Choose your destination and dates to check hotel availability.
-                </p>
+                <p className={styles.dialogNote}>{copy.dialog.note}</p>
               </div>
             </>
           ) : null}
         </DialogContent>
       </Dialog>
       <a href="#hotel-search" className={styles.mobileSearch}>
-        <Search size={18} /> Find your next stay <ArrowRight size={18} />
+        <Search size={18} aria-hidden="true" /> {copy.search.mobileLink}{' '}
+        <ArrowRight size={18} className={styles.forwardIcon} aria-hidden="true" />
       </a>
     </div>
   );

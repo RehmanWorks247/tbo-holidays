@@ -1,4 +1,5 @@
 import {
+  hotelDestinationsResponseSchema,
   hotelSchema,
   type HotelSearchRequest,
   hotelSearchResponseSchema,
@@ -9,6 +10,8 @@ import { serializeHotelSearch } from '@/features/hotel-search/utils/search-param
 import { apiRequest } from '@/services/api/api-client';
 
 export const hotelsApi = {
+  destinations: (signal?: AbortSignal) =>
+    apiRequest('/hotels/destinations', hotelDestinationsResponseSchema, { signal }),
   search: (request: HotelSearchRequest, signal?: AbortSignal) =>
     apiRequest(`/hotels/search?${serializeHotelSearch(request)}`, hotelSearchResponseSchema, {
       signal,

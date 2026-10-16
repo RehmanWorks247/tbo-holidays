@@ -100,3 +100,70 @@ supplier and payment adapters remain explicit integration boundaries. See
 [architecture](architecture.md) and [booking flow](booking-flow.md).
 
 Theme configuration needs no environment variables or backend changes.
+
+## Currency and language selectors
+
+The shared header includes a currency code and circular language flag, opening
+wide, responsive Radix dialogs with suggested choices, full lists and selected
+checkmarks. Escape, outside click and the close button dismiss them; focus returns
+to the trigger. On phones the dialogs fill the viewport and scroll. The controls
+remain visible below the account actions in the mobile header.
+
+`SitePreferencesProvider` stores validated currency and locale choices in browser
+storage under `tbo-site-preferences` and synchronizes them across tabs. Defaults
+are USD and English (US). If storage is unavailable, choices still work for the
+visit and the selector reports the persistence problem. The public `tbo-locale`
+cookie (one year, SameSite=Lax, Secure on HTTPS) also supplies the locale to server
+rendering, avoiding an English first render on subsequent visits. Invalid cookie
+values fall back to English. It contains only a validated locale, never user data.
+
+The currency choices are the API's supported USD, EUR, GBP, AED, PKR and INR.
+New searches use the saved preference. A valid search URL takes precedence when
+opening an existing search; changing currency updates only its currency parameter
+and requests new backend prices without clearing form drafts. The guest panel
+displays the search currency; the header owns its selection. Existing quotes and
+bookings keep their original price and currency. There is no browser conversion
+or expansion of the backend currency contract.
+
+The language menu matches the 45 choices, native names and ordering in the
+Booking.com reference inspected on 15 October 2026. The catalogue in
+`lib/site-locales.ts` owns supported locales and local flag assets. Typed message
+dictionaries cover header/footer navigation, appearance controls, selector dialogs,
+search controls, homepage editorial sections and destination details, hotel results,
+account/admin screens, checkout, bookings, validation, error and loading screens.
+`lib/page-english.ts` combines feature-owned source catalogues; `lib/page-messages.ts`
+assembles exhaustive translations for all 45 locale choices. Interpolated strings
+stay plain text. `usePageMessages` applies the current preference without remounting
+forms or replaying API mutations. Filters, saved destination IDs, guest entries,
+query identity, quote currency and idempotency keys do not depend on the locale.
+
+The document language/direction, page title and description update with the
+selection. Arabic and Hebrew use right-to-left layouts, logical spacing and
+mirrored directional artwork. Stay dates remain Gregorian and are formatted in
+UTC to preserve their calendar day. Quote expiry timestamps use the user's time
+zone. Localized money formatting only changes presentation of the API's amount
+and currency; it does not convert a quote.
+The six supported currencies use the API's two minor-unit decimal places,
+explicitly overriding locale-specific cash rounding (for example PKR).
+
+Public API error codes map to translated messages. Unknown outcomes tell travellers
+to check booking/payment status before retrying; a translation cannot imply that
+a payment failed or a hotel confirmed it. Raw provider errors are not displayed.
+Guest names, references, supplier hotel/room names, descriptions, facilities and
+policies remain original data. No content or personal data is sent to a translation
+service. The hotel details screen identifies supplier content in its original language.
+
+Clerk's own screens load `@clerk/localizations` on demand without remounting the
+authentication or query providers. Its catalogue currently has no Estonian,
+Latvian, Lithuanian, Slovenian or Filipino translation, so that external widget
+uses Clerk's English fallback for those choices. Argentine Spanish uses the
+available Rioplatense Spanish translation; Serbian follows Clerk's supplied
+Serbian script. Other missing provider strings can also fall back to English.
+Hosted authentication/payment pages are controlled by their providers. All
+TBO-owned account and booking pages have complete translations independently.
+See [Clerk localization](https://clerk.com/docs/guides/customizing-clerk/localization).
+
+Flags identify the language/region and never set the guest nationality. No
+authentication, supplier or payment settings change. Catalogue tests check every
+leaf and interpolation variable; rendering tests cover checkout and booking
+details in every locale using synthetic data, without accessing a real account.

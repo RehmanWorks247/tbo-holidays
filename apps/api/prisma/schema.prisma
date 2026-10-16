@@ -287,3 +287,63 @@ model OutboxEvent {
 
   @@index([completedAt, availableAt])
 }
+
+// Explicit development inventory. These models have no relationship to real
+// supplier records, quotes, bookings or payments and cannot authorize a sale.
+model MockDestination {
+  id          String      @id @db.VarChar(100)
+  name        String      @db.VarChar(100)
+  countryCode String      @db.VarChar(2)
+  aliases     String[]    @default([])
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  hotels      MockHotel[]
+
+  @@index([aliases], type: Gin)
+}
+
+model MockHotel {
+  id                  String          @id @db.VarChar(100)
+  destinationId       String          @db.VarChar(100)
+  name                String          @db.VarChar(150)
+  description         String
+  address             String          @db.VarChar(250)
+  starRating          Int
+  reviewScore         Float
+  reviewCount         Int
+  neighbourhood       String          @db.VarChar(100)
+  propertyType        String          @db.VarChar(50)
+  beachDistanceMeters Int?
+  latitude            Float?
+  longitude           Float?
+  images              String[]
+  facilities          String[]
+  badges              String[]        @default([])
+  sortOrder           Int             @default(0)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  destination         MockDestination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+  rates               MockRate[]
+
+  @@index([destinationId, sortOrder])
+}
+
+model MockRate {
+  id                   String    @id @db.VarChar(150)
+  hotelId              String    @db.VarChar(100)
+  currency             String    @db.VarChar(3)
+  mealType             String    @db.VarChar(50)
+  roomName             String    @db.VarChar(100)
+  nightlyBaseAmount    Int
+  taxBasisPoints       Int       @default(1000)
+  refundable           Boolean
+  cancellationLeadDays Int       @default(3)
+  sortOrder            Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  hotel                MockHotel @relation(fields: [hotelId], references: [id], onDelete: Restrict)
+
+  @@unique([hotelId, currency, mealType])
+  @@index([hotelId, currency, sortOrder])
+}

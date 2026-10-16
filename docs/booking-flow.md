@@ -12,8 +12,13 @@ refund and email adapters still require implementation and certification.
    rate references in Redis with a 15-minute lifetime.
 2. `POST /api/v1/hotels/recheck` accepts only `rateId`. The API loads the stored
    criteria, asks the supplier for current availability/pricing and persists an
-   owned `PriceQuote`. Its expiry uses `QUOTE_TTL_SECONDS` (default five minutes).
-   The customer reviews this latest quote before accepting it.
+   owned `PriceQuote` after verifying token, hotel, ordered rooms and currency.
+   Its expiry is the earlier of `QUOTE_TTL_SECONDS` (default five minutes) and the
+   original cached rate expiry. The backend returns and snapshots complete
+   cancellation policies, rate conditions and supplements, including charges due
+   at the property in their own currencies. It enforces the supplier selling floor
+   through markup and preserves property-local cancellation deadlines. Customer
+   presentation and acceptance of the new terms remain required before sales.
 3. `POST /api/v1/bookings` accepts `quoteId` and `idempotencyKey`. In one database
    transaction it verifies ownership/expiry, atomically consumes the unused quote,
    creates the booking and room snapshots, and writes an audit record. No supplier
@@ -32,9 +37,11 @@ refund and email adapters still require implementation and certification.
    and provider reference. Event persistence, payment/booking updates and a
    booking-fulfillment outbox event commit together.
 8. A fulfillment worker claims the paid booking, verifies quote expiry, and
-   rechecks supplier hotel, room, price and policies. It durably records the
-   mutation dispatch boundary and sends at most one supplier booking request,
-   using the booking ID as the client reference.
+   rechecks supplier hotel, room, price and the complete policy/term snapshot.
+   A changed term or a selling floor above the accepted total enters the refund
+   path before supplier dispatch. It durably records the mutation dispatch
+   boundary and sends at most one supplier booking request, using the booking ID
+   as the client reference.
 9. A confirmed supplier response with a booking reference updates the booking
    and schedules confirmation delivery in one transaction. Pending or ambiguous
    outcomes enter reconciliation; known failures request a refund.

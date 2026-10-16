@@ -55,12 +55,12 @@ export function DropdownMenuRadioItem({
   return (
     <DropdownMenuPrimitive.RadioItem
       className={cn(
-        'relative flex cursor-pointer items-center gap-2 rounded-md py-2.5 pr-3 pl-9 text-sm outline-none focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-pointer items-center gap-2 rounded-md py-2.5 pe-3 ps-9 text-sm outline-none focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}
     >
-      <span className="absolute left-3 flex size-4 items-center justify-center">
+      <span className="absolute start-3 flex size-4 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
           <Check className="size-3.5" aria-hidden="true" />
         </DropdownMenuPrimitive.ItemIndicator>

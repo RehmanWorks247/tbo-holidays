@@ -9,11 +9,19 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PriceSummary } from '@/features/booking/components/price-summary';
 import { getIdempotencyKey } from '@/features/checkout/utils/idempotency-key';
+import { formatDate, formatDateTime } from '@/lib/format-date';
+import { usePageMessages } from '@/providers/use-page-messages';
 import { requireSessionToken } from '@/services/api/api-client';
 import { bookingsApi } from '@/services/api/bookings.api';
 import { hotelsApi } from '@/services/api/hotels.api';
 
 export function RateReview({ rateId }: { rateId: string }) {
+  const {
+    messages: { booking: copy },
+    locale,
+    dir,
+    t,
+  } = usePageMessages();
   const router = useRouter();
   const { getToken, userId } = useAuth();
   const recheck = useMutation({
@@ -21,7 +29,7 @@ export function RateReview({ rateId }: { rateId: string }) {
   });
   const intent = useMutation({
     mutationFn: async () => {
-      if (!recheck.data) throw new Error('Check the latest price before continuing.');
+      if (!recheck.data) throw new Error(copy.rate.checkBeforeContinuing);
       return bookingsApi.create(
         {
           quoteId: recheck.data.id,
@@ -33,28 +41,27 @@ export function RateReview({ rateId }: { rateId: string }) {
     onSuccess: (booking) => router.replace(`/checkout?bookingId=${booking.id}`),
   });
   return (
-    <Card className="space-y-5">
-      <h2 className="text-xl font-semibold">1. Confirm the latest price</h2>
-      <p className="text-muted-foreground">
-        We’ll check this room’s current price and availability before creating your reservation.
-      </p>
+    <Card className="space-y-5" lang={locale} dir={dir}>
+      <h2 className="text-xl font-semibold">{copy.rate.title}</h2>
+      <p className="text-muted-foreground">{copy.rate.description}</p>
       {!recheck.data ? (
         <Button onClick={() => recheck.mutate()} disabled={recheck.isPending}>
-          {recheck.isPending ? 'Checking availability…' : 'Check latest price'}
+          {recheck.isPending ? copy.rate.checking : copy.rate.checkPrice}
         </Button>
       ) : (
         <>
           <h3 className="font-semibold">{recheck.data.hotel.name}</h3>
           <p>
-            {recheck.data.checkIn} → {recheck.data.checkOut}
+            {formatDate(recheck.data.checkIn, locale)} → {formatDate(recheck.data.checkOut, locale)}
           </p>
           <PriceSummary price={recheck.data.price} />
           <p className="text-sm text-muted-foreground">
-            Quote valid until {new Date(recheck.data.expiresAt).toLocaleTimeString()}. Availability
-            is confirmed by the booking service.
+            {t(copy.rate.quoteValidity, {
+              expires: formatDateTime(recheck.data.expiresAt, locale),
+            })}
           </p>
           <Button disabled={intent.isPending} onClick={() => intent.mutate()}>
-            {intent.isPending ? 'Creating reservation…' : 'Accept price and continue'}
+            {intent.isPending ? copy.rate.creating : copy.rate.accept}
           </Button>
         </>
       )}

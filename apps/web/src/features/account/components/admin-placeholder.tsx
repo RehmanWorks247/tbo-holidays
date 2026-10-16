@@ -7,28 +7,37 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccount } from '@/features/account/queries/use-account';
+import { usePageMessages } from '@/providers/use-page-messages';
 
 export function AdminPlaceholder({ bookings = false }: { bookings?: boolean }) {
+  const {
+    messages: { results: messages },
+  } = usePageMessages();
   const account = useAccount();
-  if (account.isPending) return <Skeleton className="h-40" />;
+  if (account.isPending)
+    return (
+      <div role="status" aria-label={messages.loadingAccount}>
+        <Skeleton className="h-40" />
+      </div>
+    );
   if (account.error) return <RequestError error={account.error} />;
   if (account.data.role !== 'ADMIN')
     return (
       <Card>
-        <p role="alert">This area is available to administrators only.</p>
+        <p role="alert">{messages.administratorsOnly}</p>
       </Card>
     );
   return (
     <Card className="space-y-4">
-      <h2 className="font-semibold">{bookings ? 'Booking operations' : 'Administration'}</h2>
+      <h2 className="font-semibold">
+        {bookings ? messages.bookingOperations : messages.administration}
+      </h2>
       <p className="text-muted-foreground">
-        {bookings
-          ? 'The booking operations workspace will be added here. Booking and payment changes remain controlled by the server.'
-          : 'This space is reserved for hotel and booking operations.'}
+        {bookings ? messages.bookingOperationsDescription : messages.administrationDescription}
       </p>
       {!bookings ? (
         <Button asChild variant="outline">
-          <Link href="/admin/bookings">Booking operations</Link>
+          <Link href="/admin/bookings">{messages.bookingOperations}</Link>
         </Button>
       ) : null}
     </Card>

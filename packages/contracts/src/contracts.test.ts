@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createBookingRequestSchema } from './bookings';
-import { hotelSearchRequestSchema, validateStay } from './hotels';
+import { cancellationPolicySchema, hotelSearchRequestSchema, validateStay } from './hotels';
 
 describe('public input contracts', () => {
   it('rejects browser supplied authoritative prices', () => {
@@ -28,5 +28,23 @@ describe('public input contracts', () => {
     expect(validateStay('2027-01-02', '2027-01-02', 30, now)).toContain('after');
     expect(validateStay('2027-01-02', '2027-02-02', 30, now)).toContain('30');
     expect(validateStay('2027-01-02', '2027-01-03', 30, now)).toBeUndefined();
+  });
+  it('keeps property-local policy time and percentage charges distinct from money', () => {
+    const policy = {
+      from: '2030-02-28T12:00:00',
+      timeBasis: 'property-local',
+      chargeType: 'percentage',
+      percentageBasisPoints: 5000,
+    };
+    expect(cancellationPolicySchema.safeParse(policy).success).toBe(true);
+    expect(cancellationPolicySchema.safeParse({ ...policy, from: `${policy.from}Z` }).success).toBe(
+      false,
+    );
+    expect(
+      cancellationPolicySchema.safeParse({ ...policy, percentageBasisPoints: 10001 }).success,
+    ).toBe(false);
+    expect(cancellationPolicySchema.safeParse({ ...policy, chargeType: 'fixed' }).success).toBe(
+      false,
+    );
   });
 });

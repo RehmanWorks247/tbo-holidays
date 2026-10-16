@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -21,7 +22,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SessionNavigation } from '@/features/authentication/components/session-navigation';
+import { useSiteMessages } from '@/providers/use-site-messages';
 
+import { RegionalSelectors } from './regional-selectors';
 import styles from './site-chrome.module.css';
 import { SiteLogo } from './site-logo';
 import { ThemeToggle } from './theme-toggle';
@@ -29,6 +32,9 @@ import { ThemeToggle } from './theme-toggle';
 type OpenDropdown = 'inspiration' | 'destinations' | null;
 
 export function SiteHeader() {
+  const isHotelResults = usePathname() === '/hotels';
+  const { locale, dir, messages } = useSiteMessages();
+  const copy = messages.header;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<OpenDropdown>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -65,40 +71,43 @@ export function SiteHeader() {
   }, [mobileOpen, openDropdown]);
 
   return (
-    <header ref={headerRef} className={styles.header}>
+    <header
+      ref={headerRef}
+      className={`${styles.header} ${isHotelResults ? styles.hotelHeader : ''}`}
+      lang={locale}
+      dir={dir}
+    >
       <div className={styles.topbar}>
         <div className={styles.topbarInner}>
-          <Link
-            href="/"
-            className={styles.brand}
-            aria-label="Best Holiday Packages home"
-            onClick={closeNavigation}
-          >
+          <Link href="/" className={styles.brand} aria-label={copy.home} onClick={closeNavigation}>
             <SiteLogo preload />
           </Link>
-          <div className={styles.benefits} aria-label="Why Best Holiday Packages">
+          <div className={styles.benefits} aria-label={copy.benefitsLabel}>
             <span>
-              <Sun size={17} aria-hidden="true" /> A stay for every getaway
+              <Sun size={17} aria-hidden="true" /> {copy.benefitStay}
             </span>
             <span>
-              <Check size={17} aria-hidden="true" /> Clear pricing
+              <Check size={17} aria-hidden="true" /> {copy.benefitPricing}
             </span>
             <span>
-              <CalendarCheck size={17} aria-hidden="true" /> Your trip, all in one place
+              <CalendarCheck size={17} aria-hidden="true" /> {copy.benefitTrip}
             </span>
+          </div>
+          <div className={styles.regionalActions}>
+            <RegionalSelectors />
           </div>
           <div className={styles.accountActions}>
             <Link
               className={styles.savedLink}
               href="/#saved-destinations"
-              aria-label="Saved inspiration"
-              title="Saved inspiration"
+              aria-label={copy.savedInspiration}
+              title={copy.savedInspiration}
               onClick={closeNavigation}
             >
               <Heart size={23} aria-hidden="true" />
             </Link>
             <Link className={styles.manageLink} href="/bookings" onClick={closeNavigation}>
-              Manage booking
+              {copy.manageBooking}
             </Link>
             <SessionNavigation />
             <ThemeToggle className="shrink-0 bg-transparent" />
@@ -106,7 +115,7 @@ export function SiteHeader() {
               ref={mobileButtonRef}
               type="button"
               className={styles.mobileToggle}
-              aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
+              aria-label={mobileOpen ? copy.closeNavigation : copy.openNavigation}
               aria-expanded={mobileOpen}
               aria-controls="site-navigation"
               onClick={() => {
@@ -121,42 +130,44 @@ export function SiteHeader() {
       </div>
       <nav
         id="site-navigation"
-        aria-label="Main navigation"
+        aria-label={copy.mainNavigation}
         className={`${styles.navigation} ${mobileOpen ? styles.navigationOpen : ''}`}
       >
         <div className={styles.navigationInner}>
           <div className={styles.primaryLinks}>
             <div className={styles.dropdown}>
               <DropdownMenu
+                dir={dir}
                 modal={false}
                 open={openDropdown === 'inspiration'}
                 onOpenChange={(open) => setOpenDropdown(open ? 'inspiration' : null)}
               >
                 <DropdownMenuTrigger asChild>
                   <button type="button" className={styles.navTrigger}>
-                    Holiday inspiration <ChevronDown size={15} aria-hidden="true" />
+                    {copy.holidayInspiration} <ChevronDown size={15} aria-hidden="true" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
                   sideOffset={0}
                   className={styles.dropdownPanel}
+                  lang={locale}
                   data-site-navigation-menu=""
                 >
-                  <span className={styles.dropdownEyebrow}>Find your kind of getaway</span>
+                  <span className={styles.dropdownEyebrow}>{copy.getawayEyebrow}</span>
                   <DropdownMenuItem asChild>
                     <Link href="/#holiday-inspiration" onClick={closeNavigation}>
-                      <Sparkles size={18} aria-hidden="true" /> Holiday ideas
+                      <Sparkles size={18} aria-hidden="true" /> {copy.holidayIdeas}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/#destinations" onClick={closeNavigation}>
-                      <Sun size={18} aria-hidden="true" /> Places to fall in love with
+                      <Sun size={18} aria-hidden="true" /> {copy.placesToLove}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/#saved-destinations" onClick={closeNavigation}>
-                      <Heart size={18} aria-hidden="true" /> Your saved inspiration
+                      <Heart size={18} aria-hidden="true" /> {copy.yourSavedInspiration}
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -164,45 +175,47 @@ export function SiteHeader() {
             </div>
             <div className={styles.dropdown}>
               <DropdownMenu
+                dir={dir}
                 modal={false}
                 open={openDropdown === 'destinations'}
                 onOpenChange={(open) => setOpenDropdown(open ? 'destinations' : null)}
               >
                 <DropdownMenuTrigger asChild>
                   <button type="button" className={styles.navTrigger}>
-                    Destinations <ChevronDown size={15} aria-hidden="true" />
+                    {copy.destinations} <ChevronDown size={15} aria-hidden="true" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
                   sideOffset={0}
                   className={styles.dropdownPanel}
+                  lang={locale}
                   data-site-navigation-menu=""
                 >
-                  <span className={styles.dropdownEyebrow}>Where will you go next?</span>
+                  <span className={styles.dropdownEyebrow}>{copy.destinationsEyebrow}</span>
                   <DropdownMenuItem asChild>
                     <Link href="/#destinations" onClick={closeNavigation}>
-                      Explore destinations
+                      {copy.exploreDestinations}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/hotels" onClick={closeNavigation}>
-                      Search hotels by destination
+                      {copy.searchByDestination}
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
             <Link className={styles.navLink} href="/hotels" onClick={closeNavigation}>
-              Hotels
+              {copy.hotels}
             </Link>
           </div>
           <div className={styles.secondaryLinks}>
             <Link className={styles.navLink} href="/#travel-help" onClick={closeNavigation}>
-              <HelpCircle size={16} aria-hidden="true" /> Help &amp; FAQs
+              <HelpCircle size={16} aria-hidden="true" /> {copy.help}
             </Link>
             <Link className={styles.mobileManageLink} href="/bookings" onClick={closeNavigation}>
-              Manage booking
+              {copy.manageBooking}
             </Link>
           </div>
         </div>

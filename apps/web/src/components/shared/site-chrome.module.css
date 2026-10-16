@@ -44,6 +44,9 @@
 
 .benefits {
   display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 18px;
@@ -68,9 +71,14 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 19px;
+  gap: 14px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.regionalActions {
+  flex-shrink: 0;
+  margin-inline-start: auto;
 }
 
 .savedLink {
@@ -118,10 +126,12 @@
 .navigationInner {
   min-height: 44px;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 24px;
 }
 
 .primaryLinks {
+  flex-wrap: wrap;
   gap: 32px;
 }
 
@@ -262,7 +272,7 @@
   font-size: 11px;
 }
 
-@media (max-width: 1150px) {
+@media (max-width: 1250px) {
   .benefits {
     gap: 12px;
   }
@@ -271,7 +281,7 @@
   }
 }
 
-@media (max-width: 850px) {
+@media (max-width: 1100px) {
   .benefits {
     display: none;
   }
@@ -280,7 +290,7 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 760px) {
   .topbarInner,
   .navigationInner,
   .footerInner,
@@ -289,13 +299,22 @@
   }
   .topbarInner {
     min-height: 92px;
-    gap: 12px;
+    gap: 8px 12px;
+    flex-wrap: wrap;
   }
   .brand {
     width: 128px;
   }
   .accountActions {
-    gap: 10px;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  .regionalActions {
+    display: flex;
+    order: 3;
+    width: 100%;
+    justify-content: flex-end;
+    border-top: 1px solid var(--border);
   }
   .manageLink {
     display: none;
@@ -376,5 +395,140 @@
 @media (prefers-reduced-motion: reduce) {
   .navTrigger > svg {
     transition: none;
+  }
+}
+
+/* Results keep the company identity in the reference's compact blue masthead. */
+.hotelHeader .topbar {
+  background: #0876ce;
+  color: white;
+  border: 0;
+}
+.hotelHeader .topbarInner {
+  width: min(100% - 64px, 1280px);
+  min-height: 76px;
+  padding-block: 6px;
+  gap: 24px;
+}
+.hotelHeader .brand {
+  width: 100px;
+  padding: 3px 7px;
+  background: white;
+  border-radius: 7px;
+}
+.hotelHeader .benefits {
+  justify-content: flex-end;
+  margin-inline-end: 16px;
+  font-size: 12px;
+  gap: 25px;
+}
+.hotelHeader .benefits svg {
+  color: #ffdc52;
+  width: 23px;
+  height: 23px;
+}
+.hotelHeader .regionalActions {
+  --foreground: #fff;
+  --text-secondary: #fff;
+  --text-subtle: #e5f2fc;
+}
+.hotelHeader .accountActions {
+  --foreground: #fff;
+  --input: #8bc1ec;
+  gap: 16px;
+}
+.hotelHeader .accountActions > a {
+  color: white;
+}
+.hotelHeader .manageLink {
+  display: none;
+}
+.hotelHeader .mobileToggle {
+  display: inline-flex;
+  border: 0;
+}
+.hotelHeader .navigation {
+  border: 0;
+}
+.hotelHeader .navigationInner {
+  width: min(100% - 64px, 1280px);
+  min-height: 38px;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.hotelHeader .primaryLinks {
+  display: none;
+}
+.hotelHeader .secondaryLinks {
+  gap: 14px;
+}
+.hotelHeader .navLink,
+.hotelHeader .mobileManageLink {
+  min-height: 38px;
+  color: #096dbb;
+  font-size: 12px;
+  font-weight: 400;
+}
+.hotelHeader .mobileManageLink {
+  display: inline-flex;
+  align-items: center;
+}
+:global(.dark) .hotelHeader .navLink,
+:global(.dark) .hotelHeader .mobileManageLink {
+  color: #75c4ff;
+}
+.hotelHeader .navigationOpen .primaryLinks {
+  display: flex;
+  margin-inline-end: auto;
+}
+@media (max-width: 1100px) {
+  .hotelHeader .benefits {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .hotelHeader .topbarInner {
+    width: calc(100% - 32px);
+    min-height: 65px;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+  .hotelHeader .brand {
+    width: 77px;
+    padding: 2px 5px;
+  }
+  .hotelHeader .regionalActions {
+    width: auto;
+    order: initial;
+    border: 0;
+    margin-inline-start: auto;
+  }
+  .hotelHeader .accountActions {
+    gap: 4px;
+    margin-inline-start: 0;
+  }
+  .hotelHeader .accountActions > a:not(.savedLink) {
+    display: none;
+  }
+  .hotelHeader .navigationInner {
+    width: calc(100% - 32px);
+    align-items: stretch;
+  }
+  .hotelHeader .navigationOpen .primaryLinks {
+    margin-inline-end: 0;
+  }
+  .hotelHeader .secondaryLinks {
+    gap: 0;
+  }
+}
+@media (max-width: 380px) {
+  .hotelHeader .topbarInner {
+    gap: 5px;
+  }
+  .hotelHeader .brand {
+    width: 66px;
+  }
+  .hotelHeader .accountActions {
+    gap: 0;
   }
 }

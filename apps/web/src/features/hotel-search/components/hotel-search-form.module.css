@@ -29,7 +29,7 @@
   border-radius: 5px;
   background: var(--card);
   color: var(--foreground);
-  text-align: left;
+  text-align: start;
 }
 
 .destination {
@@ -56,7 +56,8 @@
   font-weight: 600;
 }
 
-.destinationText input {
+.destinationText input,
+.destinationText select {
   display: block;
   width: 100%;
   min-width: 0;
@@ -85,7 +86,7 @@
 }
 
 .chevron {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .destination:focus-within,
@@ -105,7 +106,7 @@
   position: absolute;
   z-index: 20;
   top: calc(100% + 9px);
-  left: -1px;
+  inset-inline-start: -1px;
   width: max(100%, 290px);
   padding: 20px;
   border: 1px solid var(--border);
@@ -145,8 +146,8 @@
   height: 50px;
   border: 0;
   border-radius: 5px;
-  background: var(--search-button);
-  color: var(--search-button-foreground);
+  background: var(--text-link);
+  color: var(--card);
   font-family: inherit;
   font-size: 18px;
   font-weight: 700;
@@ -155,7 +156,7 @@
 
 .searchButton:hover,
 .doneButton:hover {
-  background: var(--search-button-hover);
+  filter: brightness(0.92);
 }
 
 .form button:focus-visible,
@@ -174,7 +175,7 @@
   background: var(--card);
   color: var(--foreground);
   box-shadow: var(--shadow-card);
-  text-align: left;
+  text-align: start;
 }
 
 .popoverHeading {
@@ -220,7 +221,7 @@
 .removeRoom {
   position: absolute;
   top: -32px;
-  right: 0;
+  inset-inline-end: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -298,7 +299,8 @@
 
 .childAges select,
 .preferences select,
-.preferences input {
+.preferences input,
+.preferences output {
   display: block;
   width: 100%;
   height: 38px;
@@ -311,6 +313,11 @@
   font: inherit;
   font-size: 13px;
   font-weight: 400;
+}
+
+.preferences output {
+  padding-block: 9px;
+  background: var(--muted);
 }
 
 .preferences input {
@@ -448,5 +455,178 @@
 
   .calendarPopover :global(.rdp-months) {
     justify-content: center;
+  }
+}
+
+/* Compact, separately labelled search fields on the hotel results page. */
+.resultsForm {
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.resultsForm .searchRow {
+  grid-template-columns:
+    minmax(180px, 2fr) minmax(110px, 0.65fr) minmax(180px, 1fr) minmax(185px, 1fr)
+    110px;
+  gap: 8px;
+  padding-top: 23px;
+}
+.resultsForm .destination,
+.resultsForm .fieldButton,
+.durationField {
+  height: 48px;
+  position: relative;
+  border-radius: 9px;
+  padding-inline: 13px;
+  gap: 9px;
+}
+.resultsForm .destinationText label,
+.resultsForm .fieldLabel {
+  position: absolute;
+  top: -25px;
+  inset-inline-start: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+.resultsForm .destinationText label {
+  white-space: nowrap;
+}
+.resultsForm .fieldValue,
+.resultsForm .destinationText select {
+  font-size: 14px;
+}
+.resultsForm .destination > svg,
+.resultsForm .fieldButton > svg {
+  width: 19px;
+  height: 19px;
+}
+.resultsForm .chevron {
+  width: 14px;
+}
+.resultsForm .searchButton {
+  height: 48px;
+  border-radius: 24px;
+  font-size: 15px;
+  background: #0876ce;
+  color: white;
+}
+.resultsForm .searchButton > svg {
+  width: 17px;
+}
+.durationField {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--input);
+  background: var(--card);
+}
+.durationField > svg {
+  flex-shrink: 0;
+}
+.durationField select {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  cursor: pointer;
+}
+.durationField:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.durationField option,
+.resultsForm select option {
+  background: var(--card);
+  color: var(--foreground);
+}
+@media (max-width: 380px) {
+  .resultsForm .durationField {
+    padding-inline: 8px;
+    gap: 5px;
+  }
+  .resultsForm .durationField > svg {
+    width: 16px;
+  }
+  .resultsForm .durationField > .fieldLabel {
+    inset-inline-start: 29px;
+  }
+}
+@media (max-width: 1100px) {
+  .resultsForm .searchRow {
+    grid-template-columns:
+      minmax(180px, 1.4fr) minmax(100px, 0.6fr) minmax(165px, 1fr) minmax(170px, 1fr)
+      48px;
+  }
+  .resultsForm .searchButton {
+    font-size: 0;
+    gap: 0;
+  }
+  .resultsForm .searchButton > svg {
+    width: 20px;
+  }
+}
+@media (max-width: 850px) {
+  .resultsForm .searchRow {
+    grid-template-columns: 1.2fr 0.8fr;
+    row-gap: 34px;
+  }
+  .resultsForm .searchButton {
+    grid-column: 1 / -1;
+    font-size: 15px;
+    gap: 8px;
+    margin-top: -20px;
+  }
+}
+@media (max-width: 540px) {
+  .resultsForm .searchRow {
+    padding-top: 0;
+    gap: 10px;
+  }
+  .resultsForm .destination {
+    grid-column: 1 / -1;
+  }
+  .resultsForm .destinationText label,
+  .resultsForm .fieldLabel {
+    position: static;
+    font-size: 10px;
+    line-height: 15px;
+  }
+  .resultsForm .destinationText select,
+  .resultsForm .fieldValue {
+    font-size: 13px;
+  }
+  .resultsForm .durationField {
+    grid-column: 2;
+    grid-row: 2;
+    padding-top: 11px;
+  }
+  .resultsForm .durationField > .fieldLabel {
+    position: absolute;
+    top: 5px;
+    inset-inline-start: 40px;
+    font-size: 10px;
+  }
+  .resultsForm .dateField {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .resultsForm .guestField {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .resultsForm .searchButton {
+    grid-column: 2;
+    grid-row: 3;
+    margin: 0;
+    border-radius: 9px;
+  }
+  .resultsForm .fieldButton {
+    padding-inline: 10px;
+    gap: 7px;
+  }
+  .resultsForm .chevron {
+    display: none;
   }
 }

@@ -1,4 +1,4 @@
-import type { Hotel, HotelSearchRequest } from '@hotel/contracts';
+import { type Hotel, type HotelSearchRequest, hotelSearchRequestSchema } from '@hotel/contracts';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
@@ -14,6 +14,8 @@ import { CurrencyService } from '../pricing/currency.service';
 import {
   tboCatalogResponseSchema,
   tboDetailsResponseSchema,
+  tboHotelCodeSchema,
+  tboPreBookResponseSchema,
   tboSearchResponseSchema,
 } from './dto/tbo.schemas';
 import { mapCatalogHotel, mapHotelDetails, mapHotelRate } from './mappers/tbo-hotel.mapper';
@@ -41,18 +43,22 @@ export class TboService implements HotelSupplier {
   ) {}
 
   async searchHotels(input: HotelSearchRequest): Promise<SupplierSearchResult[]> {
+    this.assertCriteria(input);
+    const cityCode = this.parseCode(input.destination, 'INVALID_DESTINATION');
     const catalog = parseResponse(
       tboCatalogResponseSchema,
       await this.client.read('TBOHotelCodeList', {
-        CityCode: input.destination,
+        CityCode: cityCode,
         IsDetailedResponse: true,
       }),
     );
     const hotels = new Map(
       catalog.Hotels.map((hotel) => [hotel.HotelCode, mapCatalogHotel(hotel)]),
     );
+    if (hotels.size !== catalog.Hotels.length) throw this.invalidResponse();
     const codes = [...hotels.keys()];
     const results: SupplierSearchResult[] = [];
+    const seenRates = new Set<string>();
     // Bound concurrent requests; do not flood the supplier for a large destination.
     for (let offset = 0; offset < codes.length; offset += 300) {
       const batches: string[][] = [];
@@ -63,18 +69,16 @@ export class TboService implements HotelSupplier {
       for (const response of responses) {
         for (const hotel of response.HotelResult) {
           const details = hotels.get(hotel.HotelCode);
-          if (!details)
-            throw new DomainError(
-              'INVALID_SUPPLIER_RESPONSE',
-              'Unknown hotel returned by supplier.',
-              502,
-            );
-          // Currency mismatches must never be displayed as the requested currency.
-          if (hotel.Currency !== input.currency) continue;
+          if (!details) throw this.invalidResponse();
+          if (hotel.Rooms.length === 0) continue;
+          for (const room of hotel.Rooms) {
+            if (seenRates.has(room.BookingCode)) throw this.invalidResponse();
+            seenRates.add(room.BookingCode);
+          }
           results.push({
             hotel: details,
             rates: hotel.Rooms.map((room) =>
-              mapHotelRate(room, hotel.HotelCode, hotel.Currency, this.money),
+              mapHotelRate(room, hotel.HotelCode, hotel.Currency, this.money, hotel.RateConditions),
             ),
           });
         }
@@ -84,33 +88,39 @@ export class TboService implements HotelSupplier {
   }
 
   async getHotelDetails(hotelId: string): Promise<Hotel> {
+    const code = this.parseCode(hotelId, 'INVALID_HOTEL_ID');
     const result = parseResponse(
       tboDetailsResponseSchema,
-      await this.client.read('Hoteldetails', {
-        Hotelcodes: hotelId,
+      await this.client.read('HotelDetails', {
+        Hotelcodes: code,
         Language: 'EN',
-        IsRoomDetailRequired: true,
       }),
     );
-    const hotel = result.HotelDetails.find((item) => item.HotelCode === hotelId);
-    if (!hotel) throw new DomainError('HOTEL_NOT_AVAILABLE', 'This hotel is not available.', 404);
+    if (result.HotelDetails.length === 0)
+      throw new DomainError('HOTEL_NOT_AVAILABLE', 'This hotel is not available.', 404);
+    const hotel = result.HotelDetails[0];
+    if (result.HotelDetails.length !== 1 || !hotel || hotel.HotelCode !== code)
+      throw this.invalidResponse();
     return mapHotelDetails(hotel);
   }
 
   async getAvailability(hotelId: string, input: HotelSearchRequest): Promise<SupplierRate[]> {
-    const response = await this.searchCodes([hotelId], input);
-    const hotel = response.HotelResult.find(
-      (item) => item.HotelCode === hotelId && item.Currency === input.currency,
-    );
+    this.assertCriteria(input);
+    const code = this.parseCode(hotelId, 'INVALID_HOTEL_ID');
+    const response = await this.searchCodes([code], input);
+    const hotel = response.HotelResult.find((item) => item.HotelCode === code);
     return (
-      hotel?.Rooms.map((room) => mapHotelRate(room, hotel.HotelCode, hotel.Currency, this.money)) ??
-      []
+      hotel?.Rooms.map((room) =>
+        mapHotelRate(room, hotel.HotelCode, hotel.Currency, this.money, hotel.RateConditions),
+      ) ?? []
     );
   }
 
   async recheckPrice(supplierRateId: string): Promise<SupplierRate> {
+    if (!supplierRateId || supplierRateId.length > 4096)
+      throw new DomainError('RATE_EXPIRED', 'Please search again to refresh this room.', 409);
     const result = parseResponse(
-      tboSearchResponseSchema,
+      tboPreBookResponseSchema,
       await this.client.read('PreBook', { BookingCode: supplierRateId, PaymentMode: 'Limit' }),
     );
     const candidates = result.HotelResult.flatMap((hotel) =>
@@ -124,11 +134,20 @@ export class TboService implements HotelSupplier {
         409,
       );
     }
+    // The supplied specification does not establish token rotation at PreBook.
+    // Never accept a different unit just because it is the only result.
+    if (candidates[0].room.BookingCode !== supplierRateId)
+      throw new DomainError(
+        'HOTEL_RATE_CHANGED',
+        'The selected room has changed. Please search again.',
+        409,
+      );
     return mapHotelRate(
       candidates[0].room,
       candidates[0].hotel.HotelCode,
       candidates[0].hotel.Currency,
       this.money,
+      candidates[0].hotel.RateConditions,
     );
   }
 
@@ -159,23 +178,66 @@ export class TboService implements HotelSupplier {
   }
 
   private async searchCodes(codes: string[], input: HotelSearchRequest) {
-    return parseResponse(
+    const result = parseResponse(
       tboSearchResponseSchema,
       await this.client.read('Search', {
         CheckIn: input.checkIn,
         CheckOut: input.checkOut,
         HotelCodes: codes.join(','),
         GuestNationality: input.nationality,
-        PreferredCurrencyCode: input.currency,
         PaxRooms: input.rooms.map((room) => ({
           Adults: room.adults,
           Children: room.childrenAges.length,
-          ChildrenAges: room.childrenAges.length ? room.childrenAges : null,
+          ChildrenAges: room.childrenAges,
         })),
         ResponseTime: 23,
-        IsDetailedResponse: true,
-        Filters: { NoOfRooms: input.rooms.length, MealType: 'All' },
+        IsDetailedResponse: false,
+        Filters: { MealType: 'All' },
       }),
+    );
+    const seenHotels = new Set<string>();
+    const seenRates = new Set<string>();
+    for (const hotel of result.HotelResult) {
+      if (!codes.includes(hotel.HotelCode) || seenHotels.has(hotel.HotelCode))
+        throw this.invalidResponse();
+      seenHotels.add(hotel.HotelCode);
+      if (hotel.Currency !== input.currency) {
+        throw new DomainError(
+          'SUPPLIER_CURRENCY_MISMATCH',
+          'The supplier account does not return the requested currency.',
+          422,
+        );
+      }
+      for (const room of hotel.Rooms) {
+        if (room.Name.length !== input.rooms.length || seenRates.has(room.BookingCode))
+          throw this.invalidResponse();
+        seenRates.add(room.BookingCode);
+      }
+    }
+    return result;
+  }
+
+  private assertCriteria(input: HotelSearchRequest): void {
+    if (!hotelSearchRequestSchema.safeParse(input).success)
+      throw new DomainError('INVALID_SEARCH', 'The hotel search criteria are invalid.', 400);
+  }
+
+  private parseCode(value: string, errorCode: string): string {
+    const parsed = tboHotelCodeSchema.safeParse(value);
+    if (!parsed.success)
+      throw new DomainError(
+        errorCode,
+        'A valid supplier destination or hotel code is required.',
+        400,
+      );
+    return parsed.data;
+  }
+
+  private invalidResponse(): DomainError {
+    return new DomainError(
+      'INVALID_SUPPLIER_RESPONSE',
+      'The supplier returned an unsupported response.',
+      502,
     );
   }
 }

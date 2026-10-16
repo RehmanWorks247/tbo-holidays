@@ -11,6 +11,9 @@ import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { usePageMessages } from '@/providers/use-page-messages';
+
+const guestTitles = ['Mr', 'Mrs', 'Ms', 'Miss', 'Master'] as const;
 
 function initialGuests(booking: BookingResponse): BookingGuestInput[] {
   if (booking.guests.length) return booking.guests;
@@ -45,6 +48,12 @@ export function GuestDetailsForm({
   pending: boolean;
 }) {
   const {
+    messages: { booking: copy },
+    locale,
+    dir,
+    t,
+  } = usePageMessages();
+  const {
     register,
     handleSubmit,
     formState: { errors },
@@ -55,84 +64,138 @@ export function GuestDetailsForm({
   });
   const guests = getValues('guests');
   return (
-    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      noValidate
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-6"
+      aria-label={copy.guests.formLabel}
+      lang={locale}
+      dir={dir}
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="contact-email" className="field-label">
-            Contact email
+            {copy.guests.contactEmail}
           </label>
           <Input
             id="contact-email"
             type="email"
+            dir="ltr"
             autoComplete="email"
+            aria-invalid={Boolean(errors.contactEmail)}
+            aria-describedby={errors.contactEmail ? 'contact-email-error' : undefined}
             {...register('contactEmail')}
           />
           {errors.contactEmail ? (
-            <p className="field-error">{errors.contactEmail.message}</p>
+            <p id="contact-email-error" className="field-error">
+              {copy.guests.emailError}
+            </p>
           ) : null}
         </div>
         <div>
           <label htmlFor="contact-phone" className="field-label">
-            Contact phone
+            {copy.guests.contactPhone}
           </label>
-          <Input id="contact-phone" type="tel" autoComplete="tel" {...register('contactPhone')} />
+          <Input
+            id="contact-phone"
+            type="tel"
+            dir="ltr"
+            autoComplete="tel"
+            {...register('contactPhone')}
+            aria-invalid={Boolean(errors.contactPhone)}
+            aria-describedby={errors.contactPhone ? 'contact-phone-error' : undefined}
+          />
           {errors.contactPhone ? (
-            <p className="field-error">{errors.contactPhone.message}</p>
+            <p id="contact-phone-error" className="field-error">
+              {copy.guests.phoneError}
+            </p>
           ) : null}
         </div>
       </div>
       {guests.map((guest, index) => (
         <fieldset key={index} className="rounded-md border p-4">
           <legend className="px-2 text-sm font-medium">
-            Room {guest.roomIndex + 1} ·{' '}
-            {guest.type === 'ADULT' ? 'Adult' : `Child, age ${guest.age}`}
-            {guest.leadGuest ? ' · Lead guest' : ''}
+            {t(copy.guests.room, { number: guest.roomIndex + 1 })} ·{' '}
+            {guest.type === 'ADULT'
+              ? copy.guests.adult
+              : t(copy.guests.child, { age: guest.age ?? '' })}
+            {guest.leadGuest ? ` · ${copy.details.leadGuest}` : ''}
           </legend>
           <div className="grid gap-4 sm:grid-cols-[90px_1fr_1fr]">
             <div>
               <label className="field-label" htmlFor={`title-${index}`}>
-                Title
+                {copy.guests.title}
               </label>
               <select
                 id={`title-${index}`}
                 className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                 {...register(`guests.${index}.title`)}
+                aria-invalid={Boolean(errors.guests?.[index]?.title)}
+                aria-describedby={
+                  errors.guests?.[index]?.title ? `title-error-${index}` : undefined
+                }
               >
-                {['Mr', 'Mrs', 'Ms', 'Miss', 'Master'].map((title) => (
-                  <option key={title}>{title}</option>
+                {guestTitles.map((title) => (
+                  <option key={title} value={title}>
+                    {copy.guests.titles[title]}
+                  </option>
                 ))}
               </select>
+              {errors.guests?.[index]?.title ? (
+                <p id={`title-error-${index}`} className="field-error">
+                  {copy.guests.titleError}
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="field-label" htmlFor={`first-name-${index}`}>
-                First name
+                {copy.guests.firstName}
               </label>
-              <Input id={`first-name-${index}`} {...register(`guests.${index}.firstName`)} />
+              <Input
+                id={`first-name-${index}`}
+                dir="auto"
+                {...register(`guests.${index}.firstName`)}
+                aria-invalid={Boolean(errors.guests?.[index]?.firstName)}
+                aria-describedby={
+                  errors.guests?.[index]?.firstName ? `first-name-error-${index}` : undefined
+                }
+              />
               {errors.guests?.[index]?.firstName ? (
-                <p className="field-error">{errors.guests[index]?.firstName?.message}</p>
+                <p id={`first-name-error-${index}`} className="field-error">
+                  {copy.guests.firstNameError}
+                </p>
               ) : null}
             </div>
             <div>
               <label className="field-label" htmlFor={`last-name-${index}`}>
-                Last name
+                {copy.guests.lastName}
               </label>
-              <Input id={`last-name-${index}`} {...register(`guests.${index}.lastName`)} />
+              <Input
+                id={`last-name-${index}`}
+                dir="auto"
+                {...register(`guests.${index}.lastName`)}
+                aria-invalid={Boolean(errors.guests?.[index]?.lastName)}
+                aria-describedby={
+                  errors.guests?.[index]?.lastName ? `last-name-error-${index}` : undefined
+                }
+              />
               {errors.guests?.[index]?.lastName ? (
-                <p className="field-error">{errors.guests[index]?.lastName?.message}</p>
+                <p id={`last-name-error-${index}`} className="field-error">
+                  {copy.guests.lastNameError}
+                </p>
               ) : null}
             </div>
           </div>
         </fieldset>
       ))}
-      {errors.guests?.root?.message ? (
-        <p className="field-error">{errors.guests.root.message}</p>
+      {errors.guests?.message || errors.guests?.root ? (
+        <p className="field-error" role="alert">
+          {copy.guests.detailsError}
+        </p>
       ) : null}
-      <p className="text-sm text-muted-foreground">
-        Enter guest names as they appear on travel documents. Payment is handled by the configured
-        payment provider.
-      </p>
+      <p className="text-sm text-muted-foreground">{copy.guests.guidance}</p>
       <Button type="submit" disabled={pending}>
-        {pending ? 'Preparing checkout…' : 'Save guests and continue to payment'}
+        {pending ? copy.guests.preparing : copy.guests.continue}
       </Button>
     </form>
   );

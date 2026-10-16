@@ -40,7 +40,11 @@ export class CurrencyService {
     return digits;
   }
 
-  toMinorUnits(value: string | number, currency: string): number {
+  toMinorUnits(
+    value: string | number,
+    currency: string,
+    rounding: 'half-up' | 'up' = 'half-up',
+  ): number {
     const digits = this.digits(currency);
     const match = /^(\d+)(?:\.(\d+))?$/.exec(String(value));
     if (!match?.[1]) {
@@ -48,10 +52,14 @@ export class CurrencyService {
     }
     const fraction = match[2] ?? '';
     const factor = 10n ** BigInt(digits);
+    const roundUp =
+      rounding === 'up'
+        ? /[1-9]/.test(fraction.slice(digits))
+        : Number(fraction[digits] ?? '0') >= 5;
     const rounded =
       BigInt(match[1]) * factor +
       BigInt(fraction.padEnd(digits, '0').slice(0, digits) || '0') +
-      (Number(fraction[digits] ?? '0') >= 5 ? 1n : 0n);
+      (roundUp ? 1n : 0n);
     const amount = Number(rounded);
     assertMinorAmount(amount);
     return amount;

@@ -9,9 +9,15 @@ import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { ApiResponseInterceptor } from './common/interceptors/api-response.interceptor';
 import type { Environment } from './config/environment';
+import { runtimeConfig } from './config/runtime-config';
+import { MockAppModule } from './mock-app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
+  await runtimeConfig;
+  const app = await NestFactory.create(
+    process.env.HOTEL_DATA_MODE === 'mock' ? MockAppModule : AppModule,
+    { bufferLogs: true, rawBody: true },
+  );
   const config = app.get(ConfigService<Environment, true>);
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api/v1');

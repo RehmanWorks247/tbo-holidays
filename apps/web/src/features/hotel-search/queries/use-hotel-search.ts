@@ -1,6 +1,7 @@
 import type { HotelSearchRequest } from '@hotel/contracts';
 import { useQuery } from '@tanstack/react-query';
 
+import { searchStayOnly } from '@/features/hotel-search/utils/search-params';
 import { hotelsApi } from '@/services/api/hotels.api';
 
 export const hotelSearchKey = (request: HotelSearchRequest | null) =>
@@ -15,5 +16,14 @@ export function useHotelSearch(request: HotelSearchRequest | null) {
     },
     enabled: request !== null,
     staleTime: 30_000,
+    // Keep the previous cards in place while a new filter request is in flight.
+    // Destination/date/occupancy changes intentionally get a fresh loading state.
+    placeholderData: (previous, previousQuery) => {
+      const old = previousQuery?.queryKey[1];
+      if (!old || typeof old !== 'object' || !request) return undefined;
+      const criteria = searchStayOnly(old as HotelSearchRequest);
+      const nextCriteria = searchStayOnly(request);
+      return JSON.stringify(criteria) === JSON.stringify(nextCriteria) ? previous : undefined;
+    },
   });
 }

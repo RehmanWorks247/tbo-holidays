@@ -2,10 +2,13 @@
 
 import { ClerkProvider, useAuth } from '@clerk/nextjs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createContext, type ReactNode, useContext, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 
 import { publicEnvironment } from '@/config/env';
+import { type ClerkLocalization, loadClerkLocale } from '@/features/authentication/clerk-locales';
 import { ApiError } from '@/services/api/api-client';
+
+import { usePageMessages } from './use-page-messages';
 
 const AuthenticationContext = createContext(false);
 export function useAuthenticationEnabled() {
@@ -36,23 +39,69 @@ function AuthenticatedQueries({ children }: { children: ReactNode }) {
   return <QueryScope key={userId ?? 'anonymous'}>{children}</QueryScope>;
 }
 
+function LocalizedAuthentication({
+  children,
+  initialLocalization,
+}: {
+  children: ReactNode;
+  initialLocalization?: ClerkLocalization;
+}) {
+  const {
+    locale,
+    messages: { app },
+  } = usePageMessages();
+  const [localization, setLocalization] = useState<ClerkLocalization | undefined>(
+    initialLocalization,
+  );
+  const [languageError, setLanguageError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void loadClerkLocale(locale).then(
+      (resource) => {
+        if (!active) return;
+        setLocalization(resource);
+        setLanguageError(false);
+      },
+      () => {
+        if (active) setLanguageError(true);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [locale]);
+  return (
+    <ClerkProvider
+      publishableKey={publicEnvironment.clerkPublishableKey}
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      localization={localization}
+    >
+      {languageError ? (
+        <p role="status" className="p-3 text-sm">
+          {app.serviceUnavailable}
+        </p>
+      ) : null}
+      <AuthenticatedQueries>{children}</AuthenticatedQueries>
+    </ClerkProvider>
+  );
+}
+
 export function AppProviders({
   children,
   authEnabled,
+  initialLocalization,
 }: {
   children: ReactNode;
   authEnabled: boolean;
+  initialLocalization?: ClerkLocalization;
 }) {
   return (
     <AuthenticationContext.Provider value={authEnabled}>
       {authEnabled ? (
-        <ClerkProvider
-          publishableKey={publicEnvironment.clerkPublishableKey}
-          signInUrl="/sign-in"
-          signUpUrl="/sign-up"
-        >
-          <AuthenticatedQueries>{children}</AuthenticatedQueries>
-        </ClerkProvider>
+        <LocalizedAuthentication initialLocalization={initialLocalization}>
+          {children}
+        </LocalizedAuthentication>
       ) : (
         <QueryScope>{children}</QueryScope>
       )}

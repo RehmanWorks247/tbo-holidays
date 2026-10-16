@@ -83,18 +83,29 @@ The catalog uses supplier destination codes; a destination discovery/autocomplet
 integration is an extension point, not seeded hotel inventory.
 
 Authenticated recheck loads the cached rate, validates the stay again, asks the
-supplier for its current offer, and verifies hotel/room/currency identity. It
-creates a `PriceQuote` in PostgreSQL bound to the current user. The quote stores
-normalized occupancy, supplier reference, component amounts, pricing rules,
-cancellation policy snapshot and expiry. The browser can accept this quote ID;
-it cannot submit an authoritative amount or supplier booking token.
+supplier for its current offer, and verifies the unchanged token,
+hotel/ordered-room/currency identity. It creates a `PriceQuote` in PostgreSQL bound
+to the current user. The quote stores normalized occupancy, supplier reference,
+component amounts, pricing rules, cancellation policies and complete rate terms.
+Policies preserve property-local deadlines and room association; terms include
+mandatory property charges in their own currencies. Expiry is capped by both the
+configured quote lifetime and the original cached rate expiry. The browser receives
+normalized prices and terms and can accept the quote ID; it cannot submit an
+authoritative amount or supplier booking token. Frontend presentation of the new
+terms remains work before sales can be enabled.
 
 The public currency set is USD, EUR, GBP, AED, PKR and INR. Every amount in a public
 contract or money column is an integer in the currency's minor unit. Pricing
-validates the currency, uses checked bounds, and calculates markup with integer
-half-up rounding. Markup applies to base amount only; tax and fee components are
-added once. Discounts are currently zero. No implicit foreign-exchange conversion
-exists. Historical bookings retain the accepted price and policy snapshots.
+validates the currency, uses checked bounds, and calculates normal markup on the
+base amount with integer half-up rounding; tax and fee components are added once.
+A supplier selling floor rounds up to minor units and raises markup so the total
+is at least that floor, without changing supplier charges. The floor remains in
+private pricing snapshots, not public price breakdowns. TBO fare is currently
+interpreted as inclusive of tax and extra-guest charges; the latter are informational,
+and property-payable supplements are disclosed separately. These supplier pricing
+interpretations still require account verification. Discounts are currently zero.
+No implicit foreign-exchange conversion exists. Historical bookings retain the
+accepted price and complete policy/term snapshots.
 
 Database models are not public API contracts. `User`, `CustomerProfile`,
 `PriceQuote`, `Booking`, guests, rooms, payments, events, refunds, favorites,
@@ -102,18 +113,49 @@ Database models are not public API contracts. `User`, `CustomerProfile`,
 ownership indexes, idempotency uniqueness and one payment reservation per booking.
 Raw third-party payloads are not the primary model.
 
+PostgreSQL is the primary database for both the application and its isolated mock
+catalogue. Bookings, payment events, quote consumption and pending work need
+transactions, foreign keys and uniqueness constraints. Redis serves short-lived
+references and queue delivery; it does not replace durable financial records.
+Query-specific indexes and bounded supplier-result caches support fast reads.
+A separate document database would add operational complexity without a current
+requirement that the existing PostgreSQL schema cannot meet.
+
 ## External integrations and their current limits
 
 `HOTEL_SUPPLIER` binds to `TboService`; application code depends on `HotelSupplier`.
+An explicit development-only `HOTEL_DATA_MODE=mock` selects `MockAppModule`
+instead of the live application composition. It reuses hotel transport with
+`MockHotelSupplier` and `MockSearchService`, with the shared database module but
+without Redis or mutation modules. Dedicated `MockDestination`, `MockHotel` and
+`MockRate` tables store the fictional catalogue. They have no links to booking,
+quote, payment or user records. Runtime reads use PostgreSQL; the TypeScript
+fixtures are seed input only. Destination and hotel/currency indexes bound the
+catalogue queries, then the shared search domain filters computed stay prices.
+Production configuration rejects mock mode. See [hotel preview](hotel-preview.md).
 The client uses configured HTTPS, Basic authentication, deadlines, redacted
 context logging and bounded retries for explicitly allowlisted read operations.
-No mutation can enter the read retry path. TBO read DTOs are candidate REST
-integration shapes and are disabled by default with `TBO_READS_ENABLED=false`.
+Endpoint configuration rejects embedded credentials, query strings and fragments;
+the client rejects redirects. No mutation can enter the read retry path. The v2.1
+adapter implements `Search`, `HotelDetails`, `PreBook` and the city-scoped
+`TBOHotelCodeList`, with synthetic contract fixtures and default
+`TBO_READS_ENABLED=false`. Search batches up to 100 codes with at most three
+concurrent requests, omits unsupported currency and room-limit parameters, and
+rejects a returned currency different from the requested one. Supplier no-inventory,
+rate expiry and account errors are normalized without exposing supplier payloads.
+Hotel results filtering, sorting and pagination run in the search domain after
+authoritative pricing. Live unfiltered inventory is cached in Redis for 30 seconds
+by the complete stay and pricing policy, with identical in-flight requests coalesced
+per process. Original opaque rate references and expiry are retained across filters.
 
-The public TBO portal documents SOAP v7, which does not certify this account's
-JSON API contract. Obtain the agency's current REST specification and sandbox
-fixtures before enabling reads. Validate endpoint routing, tax-inclusive fare
-semantics, multi-room rates, policies, supplements and expiry. Read
+The supplied JSON Hotel API v2.1 specification is documented in the
+[TBO API reference](../apps/api/src/modules/tbo/API_REFERENCE.md), with scoped
+[backend agent guidance](../apps/api/AGENTS.md). It does not certify this account's
+implementation. Obtain the assigned HTTPS endpoints and sanitized account sandbox
+fixtures before enabling reads. Validate endpoint routing, profile currency,
+tax-inclusive fare semantics, multi-room rates, local policy dates and indices,
+supplements, selling-rate floors and token validity. Details currently exposes
+hotel-level content only; optional static room content is not requested. Read
 [the TBO integration notes](../apps/api/src/modules/tbo/INTEGRATION.md) before
 changing this boundary. TBO booking, lookup and cancellation remain explicitly
 disabled even when read credentials are supplied.
@@ -146,5 +188,7 @@ operator workflow for unresolved outbox and reconciliation records.
 
 ## Supplier references
 
+- [Supplied TBO JSON Hotel API v2.1 reference](../apps/api/src/modules/tbo/API_REFERENCE.md)
+- [Backend agent guide](../apps/api/AGENTS.md)
 - [TBO public API specification portal](https://api.tbotechnology.in/AIS_APISpecification.aspx)
 - [TBO certification and ambiguous-booking guidance](https://api.tbotechnology.in/AIS_Going-live-certification.aspx)

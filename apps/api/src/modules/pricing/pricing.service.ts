@@ -11,6 +11,7 @@ import { DomainError } from '../../common/errors/domain-error';
 import type { Environment } from '../../config/environment';
 import { DatabaseService } from '../../database/database.service';
 import type { SupplierRate } from '../hotels/hotel-supplier';
+import { supplierPolicySnapshot } from '../hotels/hotel-supplier';
 import { assertMinorAmount, CurrencyService } from './currency.service';
 import { MarkupService } from './markup.service';
 
@@ -34,12 +35,21 @@ export class PricingService {
       );
     }
     [input.baseAmount, input.taxAmount, input.feeAmount].forEach(assertMinorAmount);
-    const markupAmount = this.markup.calculate(input.baseAmount);
-    const totalAmount = input.baseAmount + input.taxAmount + input.feeAmount + markupAmount;
+    if (input.minimumSellingAmount !== undefined) assertMinorAmount(input.minimumSellingAmount);
+    const supplierAmount = input.baseAmount + input.taxAmount + input.feeAmount;
+    assertMinorAmount(supplierAmount);
+    const markedUpTotal = supplierAmount + this.markup.calculate(input.baseAmount);
+    assertMinorAmount(markedUpTotal);
+    // A supplier selling floor changes our markup, never the supplier's charges.
+    const totalAmount = Math.max(markedUpTotal, input.minimumSellingAmount ?? 0);
     assertMinorAmount(totalAmount);
+    const markupAmount = totalAmount - supplierAmount;
+    assertMinorAmount(markupAmount);
     return {
-      ...input,
       currency: supportedCurrency.data,
+      baseAmount: input.baseAmount,
+      taxAmount: input.taxAmount,
+      feeAmount: input.feeAmount,
       markupAmount,
       discountAmount: 0,
       totalAmount,
@@ -53,6 +63,7 @@ export class PricingService {
     rate: SupplierRate;
     hotel: Hotel;
     criteria: HotelSearchRequest;
+    expiresAt?: Date;
   }) {
     const price = this.calculateBookingTotal(input.rate.price);
     return this.db.priceQuote.create({
@@ -71,16 +82,19 @@ export class PricingService {
         pricingSnapshot: {
           version: 1,
           ...price,
+          ...(input.rate.price.minimumSellingAmount === undefined
+            ? {}
+            : { minimumSellingAmount: input.rate.price.minimumSellingAmount }),
           markupBasisPoints: this.config.get('MARKUP_BASIS_POINTS', { infer: true }),
           calculatedAt: new Date().toISOString(),
         },
-        policySnapshot: {
-          refundable: input.rate.refundable,
-          cancellationPolicies: input.rate.cancellationPolicies,
-        },
+        policySnapshot: supplierPolicySnapshot(input.rate),
         supplierMetadata: {},
         expiresAt: new Date(
-          Date.now() + this.config.get('QUOTE_TTL_SECONDS', { infer: true }) * 1000,
+          Math.min(
+            Date.now() + this.config.get('QUOTE_TTL_SECONDS', { infer: true }) * 1000,
+            input.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+          ),
         ),
       },
     });

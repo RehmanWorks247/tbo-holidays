@@ -2,6 +2,10 @@
 
 Read README.md, docs/architecture.md, and docs/booking-flow.md before changing a domain.
 
+Backend work also follows [apps/api/AGENTS.md](apps/api/AGENTS.md). The supplied
+TBO Hotel API v2.1 is documented in the
+[TBO API reference](apps/api/src/modules/tbo/API_REFERENCE.md).
+
 1. Frontend business features live in `apps/web/src/features/<feature>`; route files in `app` compose them. Shared primitives belong in `components/ui`, cross-feature layout in `components/shared`.
 2. Backend business domains live in `apps/api/src/modules/<domain>`. Follow existing `*.module.ts`, `*.controller.ts`, `*.service.ts` naming. Infrastructure belongs in `infrastructure`, durable workers in `jobs`.
 3. Controllers handle transport, validation and delegation only. Business rules belong in services and explicit domain functions.

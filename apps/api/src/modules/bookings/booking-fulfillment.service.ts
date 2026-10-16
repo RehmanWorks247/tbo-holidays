@@ -6,7 +6,8 @@ import { Prisma } from '@prisma/client';
 import { DomainError } from '../../common/errors/domain-error';
 import { DatabaseService } from '../../database/database.service';
 import type { HotelSupplier, SupplierBookingResult, SupplierRate } from '../hotels/hotel-supplier';
-import { HOTEL_SUPPLIER } from '../hotels/hotel-supplier';
+import { HOTEL_SUPPLIER, supplierPolicySnapshot } from '../hotels/hotel-supplier';
+import { assertMinorAmount } from '../pricing/currency.service';
 import { customerSnapshotSchema, occupancySnapshotSchema } from './booking-snapshots';
 import { canFulfillBooking } from './booking-state';
 
@@ -58,6 +59,9 @@ export class BookingFulfillmentService {
     let rechecked: SupplierRate;
     try {
       rechecked = await this.supplier.recheckPrice(booking.quote.supplierRateId);
+      if (rechecked.price.minimumSellingAmount !== undefined) {
+        assertMinorAmount(rechecked.price.minimumSellingAmount);
+      }
       if (
         rechecked.hotelId !== booking.hotelCode ||
         rechecked.roomName !== booking.quote.roomName ||
@@ -65,10 +69,8 @@ export class BookingFulfillmentService {
         rechecked.price.baseAmount !== booking.baseAmount ||
         rechecked.price.taxAmount !== booking.taxAmount ||
         rechecked.price.feeAmount !== booking.feeAmount ||
-        !isDeepStrictEqual(booking.policySnapshot, {
-          refundable: rechecked.refundable,
-          cancellationPolicies: rechecked.cancellationPolicies,
-        })
+        (rechecked.price.minimumSellingAmount ?? 0) > booking.totalAmount ||
+        !isDeepStrictEqual(booking.policySnapshot, supplierPolicySnapshot(rechecked))
       ) {
         await this.failAndRequestRefund(bookingId, 'HOTEL_RATE_CHANGED');
         return;
@@ -77,6 +79,10 @@ export class BookingFulfillmentService {
       // No supplier mutation has been sent, so this outcome is known and can
       // safely enter the refund path rather than charge a changed/unavailable rate.
       await this.failAndRequestRefund(bookingId, 'SUPPLIER_RECHECK_UNAVAILABLE');
+      return;
+    }
+    if (booking.quote.expiresAt <= new Date()) {
+      await this.failAndRequestRefund(bookingId, 'QUOTE_EXPIRED_BEFORE_FULFILLMENT');
       return;
     }
     // Persist the dispatch boundary before the mutation. The initial status
@@ -89,6 +95,7 @@ export class BookingFulfillmentService {
           bookingStatus: 'BOOKING_PROCESSING',
           paymentStatus: 'PAYMENT_SUCCEEDED',
           supplierAttemptedAt: null,
+          quote: { expiresAt: { gt: new Date() } },
         },
         data: { supplierAttemptedAt: new Date(), version: { increment: 1 } },
       });

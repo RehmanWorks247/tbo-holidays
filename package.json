@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm db:generate && pnpm --filter @hotel/contracts build && turbo run dev",
+    "dev:mock": "pnpm db:generate && pnpm --filter @hotel/contracts build && pnpm --parallel --filter @hotel/api --filter @hotel/web run dev:mock",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint -- --fix",
@@ -20,6 +21,8 @@
     "db:generate": "pnpm --filter @hotel/api db:generate",
     "db:migrate": "pnpm --filter @hotel/api db:migrate",
     "db:deploy": "pnpm --filter @hotel/api db:deploy",
+    "db:seed:mock": "pnpm --filter @hotel/api db:seed:mock",
+    "db:prepare:mock": "pnpm db:generate && pnpm --filter @hotel/contracts build && pnpm --filter @hotel/api db:prepare:mock",
     "db:studio": "pnpm --filter @hotel/api db:studio",
     "infra:up": "docker compose -f docker/compose.yaml up -d --wait",
     "infra:down": "docker compose -f docker/compose.yaml down"

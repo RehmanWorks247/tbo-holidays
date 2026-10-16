@@ -143,6 +143,10 @@ summary:focus-visible {
   margin-inline: auto;
   padding: 32px 24px 64px;
 }
+.site-main:has([data-hotel-results]) {
+  max-width: none;
+  padding: 0;
+}
 @media (max-width: 640px) {
   .site-main {
     padding: 24px 16px 40px;

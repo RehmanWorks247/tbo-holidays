@@ -21,6 +21,12 @@ export class HotelsController {
   ) {}
 
   @Public()
+  @Get('destinations')
+  getDestinations() {
+    return this.hotels.getDestinations();
+  }
+
+  @Public()
   @Get('search')
   searchHotels(@Query(new ZodValidationPipe(hotelSearchQuerySchema)) query: HotelSearchRequest) {
     return this.search.searchHotels(query);

@@ -1,8 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 import {
   type HotelSearchRequest,
   type HotelSearchResponse,
+  type HotelSearchResult,
   type QuoteResponse,
   validateStay,
 } from '@hotel/contracts';
@@ -14,12 +16,16 @@ import type { Environment } from '../../config/environment';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { HOTEL_SUPPLIER, type HotelSupplier } from '../hotels/hotel-supplier';
 import { PricingService } from '../pricing/pricing.service';
-import { cachedRateSchema } from './search.schemas';
+import { browseHotelResults } from './hotel-results';
+import { cachedHotelInventorySchema, cachedRateSchema } from './search.schemas';
 
 const RATE_TTL_SECONDS = 15 * 60;
+const INVENTORY_TTL_SECONDS = 30;
 
 @Injectable()
 export class SearchService {
+  private readonly pendingInventory = new Map<string, Promise<HotelSearchResult[]>>();
+
   constructor(
     @Inject(HOTEL_SUPPLIER) private readonly supplier: HotelSupplier,
     private readonly pricing: PricingService,
@@ -29,6 +35,80 @@ export class SearchService {
 
   async searchHotels(input: HotelSearchRequest): Promise<HotelSearchResponse> {
     this.assertStay(input);
+    const criteria: HotelSearchRequest = {
+      destination: input.destination,
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
+      nationality: input.nationality,
+      rooms: input.rooms,
+      currency: input.currency,
+    };
+    const key = `hotel-inventory:v1:${createHash('sha256')
+      .update(
+        JSON.stringify({
+          supplier: this.supplier.name,
+          markup: this.config.get('MARKUP_BASIS_POINTS', { infer: true }),
+          criteria,
+        }),
+      )
+      .digest('hex')}`;
+    const cached = await this.readInventory(key, criteria.currency);
+    let hotels = cached;
+    if (!hotels) {
+      let pending = this.pendingInventory.get(key);
+      if (!pending) {
+        pending = this.loadInventory(criteria, key);
+        this.pendingInventory.set(key, pending);
+      }
+      try {
+        hotels = await pending;
+      } finally {
+        if (this.pendingInventory.get(key) === pending) this.pendingInventory.delete(key);
+      }
+    }
+    return browseHotelResults(hotels, input, 'live', hotels[0]?.hotel.city ?? input.destination);
+  }
+
+  private async readInventory(
+    key: string,
+    currency: string,
+  ): Promise<HotelSearchResult[] | undefined> {
+    let raw: string | null;
+    try {
+      raw = await this.redis.client.get(key);
+    } catch {
+      throw new DomainError(
+        'SEARCH_UNAVAILABLE',
+        'Search is temporarily unavailable. Please try again.',
+        503,
+      );
+    }
+    if (!raw) return undefined;
+    // Invalid or stale short-lived inventory is deliberately refreshed, never reused.
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw) as unknown;
+    } catch {
+      return undefined;
+    }
+    const parsed = cachedHotelInventorySchema.safeParse(payload);
+    if (
+      !parsed.success ||
+      Date.parse(parsed.data.expiresAt) <= Date.now() ||
+      parsed.data.hotels.some(({ rates }) =>
+        rates.some(
+          (rate) => Date.parse(rate.expiresAt) <= Date.now() || rate.price.currency !== currency,
+        ),
+      )
+    )
+      return undefined;
+    return parsed.data.hotels;
+  }
+
+  private async loadInventory(
+    input: HotelSearchRequest,
+    inventoryKey: string,
+  ): Promise<HotelSearchResult[]> {
     const results = await this.supplier.searchHotels(input);
     const expiresAt = new Date(Date.now() + RATE_TTL_SECONDS * 1000).toISOString();
     const pipeline = this.redis.client.pipeline();
@@ -45,6 +125,7 @@ export class SearchService {
             criteria: input,
             supplierRateId: rate.supplierRateId,
             roomName: rate.roomName,
+            ...(rate.terms ? { roomNames: rate.terms.roomNames } : {}),
             currency: rate.price.currency,
             expiresAt,
           }),
@@ -56,14 +137,20 @@ export class SearchService {
           roomName: rate.roomName,
           ...(rate.mealType ? { mealType: rate.mealType } : {}),
           refundable: rate.refundable,
+          cancellationPolicies: rate.cancellationPolicies,
+          ...(rate.terms ? { terms: rate.terms } : {}),
           price: this.pricing.calculateBookingTotal(rate.price),
           expiresAt,
         };
       }),
     }));
     if (hotels.some((hotel) => hotel.rates.length)) {
-      const persisted = await pipeline.exec();
-      if (!persisted || persisted.some(([error]) => error)) {
+      try {
+        const persisted = await pipeline.exec();
+        if (!persisted || persisted.some(([error]) => error)) {
+          throw new Error('Search reference persistence failed.');
+        }
+      } catch {
         throw new DomainError(
           'SEARCH_UNAVAILABLE',
           'Search could not be saved. Please try again.',
@@ -71,10 +158,35 @@ export class SearchService {
         );
       }
     }
-    return { hotels };
+    // Save inventory only after every opaque rate reference has been persisted.
+    // A cache hit reuses those references and their original expiry without extending either.
+    try {
+      await this.redis.client.set(
+        inventoryKey,
+        JSON.stringify({
+          hotels,
+          expiresAt: new Date(Date.now() + INVENTORY_TTL_SECONDS * 1000).toISOString(),
+        }),
+        'EX',
+        INVENTORY_TTL_SECONDS,
+      );
+    } catch {
+      throw new DomainError(
+        'SEARCH_UNAVAILABLE',
+        'Search could not be saved. Please try again.',
+        503,
+      );
+    }
+    return hotels;
   }
 
   async recheckHotelRate(rateId: string, userId: string): Promise<QuoteResponse> {
+    if (rateId.startsWith('mock:'))
+      throw new DomainError(
+        'MOCK_BOOKING_DISABLED',
+        'Preview hotels cannot be booked or paid for.',
+        409,
+      );
     const raw = await this.redis.client.get(`hotel-rate:${rateId}`);
     if (!raw)
       throw new DomainError('RATE_EXPIRED', 'Please search again to refresh this room.', 409);
@@ -98,7 +210,9 @@ export class SearchService {
     if (
       rate.hotelId !== cached.hotel.id ||
       rate.price.currency !== cached.currency ||
-      rate.roomName !== cached.roomName
+      rate.roomName !== cached.roomName ||
+      (cached.roomNames && !isDeepStrictEqual(rate.terms?.roomNames, cached.roomNames)) ||
+      (rate.terms && rate.terms.roomNames.length !== cached.criteria.rooms.length)
     ) {
       throw new DomainError(
         'HOTEL_RATE_CHANGED',
@@ -106,6 +220,8 @@ export class SearchService {
         409,
       );
     }
+    if (Date.parse(cached.expiresAt) <= Date.now())
+      throw new DomainError('RATE_EXPIRED', 'Please search again to refresh this room.', 409);
     const quote = await this.pricing.createQuote({
       userId,
       supplier: this.supplier.name,
@@ -113,6 +229,7 @@ export class SearchService {
       rate,
       hotel: cached.hotel,
       criteria: cached.criteria,
+      expiresAt: new Date(cached.expiresAt),
     });
     return {
       id: quote.id,
@@ -121,6 +238,10 @@ export class SearchService {
       checkOut: cached.criteria.checkOut,
       rooms: cached.criteria.rooms,
       price: this.pricing.calculateBookingTotal(rate.price),
+      refundable: rate.refundable,
+      ...(rate.mealType ? { mealType: rate.mealType } : {}),
+      cancellationPolicies: rate.cancellationPolicies,
+      ...(rate.terms ? { terms: rate.terms } : {}),
       expiresAt: quote.expiresAt.toISOString(),
     };
   }

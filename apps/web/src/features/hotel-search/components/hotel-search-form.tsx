@@ -2,22 +2,37 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { HotelSearchRequest } from '@hotel/contracts';
-import { ChevronDown, MapPin, Minus, Plus, Search, Users, X } from 'lucide-react';
+import { ChevronDown, MapPin, Minus, Moon, Plus, Search, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import type { z } from 'zod';
 
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { publicEnvironment } from '@/config/env';
 import { DateRangePicker } from '@/features/hotel-search/components/date-range-picker';
 import styles from '@/features/hotel-search/components/hotel-search-form.module.css';
+import { useHotelDestinations } from '@/features/hotel-search/queries/use-hotel-destinations';
 import { hotelSearchFormSchema } from '@/features/hotel-search/schemas/hotel-search.schema';
-import { serializeHotelSearch } from '@/features/hotel-search/utils/search-params';
+import { searchStayOnly, serializeHotelSearch } from '@/features/hotel-search/utils/search-params';
+import { useSitePreferences } from '@/providers/site-preferences-provider';
+import { useSiteMessages } from '@/providers/use-site-messages';
 
-export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearchRequest | null }) {
+export function HotelSearchForm({
+  initialSearch,
+  variant = 'default',
+}: {
+  initialSearch?: HotelSearchRequest | null;
+  variant?: 'default' | 'results';
+}) {
   const router = useRouter();
+  const { currency } = useSitePreferences();
+  const { locale, dir, messages } = useSiteMessages();
+  const copy = messages.search;
+  const initialCurrency = initialSearch?.currency;
   const formId = useId();
   const [guestsOpen, setGuestsOpen] = useState(false);
+  const destinations = useHotelDestinations();
   const {
     register,
     control,
@@ -32,32 +47,37 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
       checkIn: '',
       checkOut: '',
       nationality: '',
-      currency: 'USD',
+      currency,
       rooms: [{ adults: 2, childrenAges: [] }],
     },
   });
+  useEffect(() => {
+    if (initialCurrency) setValue('currency', initialCurrency, { shouldValidate: false });
+  }, [initialCurrency, setValue]);
+  useEffect(() => {
+    if (!initialCurrency) setValue('currency', currency, { shouldValidate: false });
+  }, [currency, initialCurrency, setValue]);
   const { fields, append, remove } = useFieldArray({ control, name: 'rooms' });
   const checkIn = watch('checkIn');
   const checkOut = watch('checkOut');
   const rooms = watch('rooms');
+  const searchCurrency = watch('currency');
   const adults = rooms.reduce((total, room) => total + room.adults, 0);
   const children = rooms.reduce((total, room) => total + room.childrenAges.length, 0);
-  const guestsLabel = [
-    `${adults} adult${adults === 1 ? '' : 's'}`,
-    children ? `${children} child${children === 1 ? '' : 'ren'}` : '',
-    `${rooms.length} room${rooms.length === 1 ? '' : 's'}`,
-  ]
-    .filter(Boolean)
-    .join(', ');
+  const guestsLabel = copy.guestSummary(adults, children, rooms.length);
+  const nights =
+    checkIn && checkOut ? Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000) : 7;
 
   return (
     <form
       id={formId}
-      className={styles.form}
+      className={`${styles.form} ${variant === 'results' ? styles.resultsForm : ''}`}
+      lang={locale}
+      dir={dir}
       noValidate
-      aria-label="Find your hotel"
+      aria-label={copy.formLabel}
       onSubmit={handleSubmit(
-        (request) => router.push(`/hotels?${serializeHotelSearch(request)}`),
+        (request) => router.push(`/hotels?${serializeHotelSearch(searchStayOnly(request))}`),
         (invalidFields) => {
           if (invalidFields.rooms || invalidFields.nationality || invalidFields.currency) {
             setGuestsOpen(true);
@@ -65,31 +85,81 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
         },
       )}
     >
+      <input type="hidden" {...register('currency')} />
       <div className={styles.searchRow}>
         <div className={styles.destination}>
           <MapPin size={22} strokeWidth={1.8} aria-hidden="true" />
           <div className={styles.destinationText}>
-            <label htmlFor={`${formId}-destination`}>Where to?</label>
-            <input
-              id={`${formId}-destination`}
-              placeholder="Destination city code"
-              autoComplete="off"
-              {...register('destination')}
-              aria-invalid={Boolean(errors.destination)}
-              aria-describedby={`${formId}-destination-help${errors.destination ? ` ${formId}-destination-error` : ''}`}
-            />
+            <label htmlFor={`${formId}-destination`}>{copy.destination}</label>
+            {destinations.data?.source === 'mock' ? (
+              <select
+                id={`${formId}-destination`}
+                {...register('destination')}
+                aria-invalid={Boolean(errors.destination)}
+                aria-describedby={errors.destination ? `${formId}-destination-error` : undefined}
+              >
+                <option value="">Choose a destination</option>
+                {destinations.data.destinations.map((destination) => (
+                  <option key={destination.id} value={destination.id}>
+                    {destination.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={`${formId}-destination`}
+                placeholder={copy.destinationPlaceholder}
+                autoComplete="off"
+                {...register('destination')}
+                aria-invalid={Boolean(errors.destination)}
+                aria-describedby={`${formId}-destination-help${errors.destination ? ` ${formId}-destination-error` : ''}`}
+              />
+            )}
           </div>
-          <div id={`${formId}-destination-help`} className={styles.destinationHelp}>
-            <strong>Find your next hotel stay</strong>
-            <p>Enter a destination city code from your connected hotel catalogue.</p>
-          </div>
+          {destinations.data?.source !== 'mock' ? (
+            <div id={`${formId}-destination-help`} className={styles.destinationHelp}>
+              <strong>{copy.destinationHelpTitle}</strong>
+              <p>{copy.destinationHelp}</p>
+            </div>
+          ) : null}
         </div>
 
+        {variant === 'results' ? (
+          <label className={styles.durationField}>
+            <span className={styles.fieldLabel} lang="en">
+              How long
+            </span>
+            <Moon size={19} aria-hidden="true" />
+            <select
+              aria-label="Length of stay"
+              value={Number.isFinite(nights) && nights > 0 ? nights : 7}
+              onChange={(event) => {
+                if (!checkIn) return;
+                setValue(
+                  'checkOut',
+                  new Date(Date.parse(checkIn) + Number(event.target.value) * 86_400_000)
+                    .toISOString()
+                    .slice(0, 10),
+                  { shouldValidate: true },
+                );
+              }}
+            >
+              {Array.from({ length: publicEnvironment.maxStayNights }, (_, index) => index + 1).map(
+                (count) => (
+                  <option key={count} value={count}>
+                    {count} {count === 1 ? 'night' : 'nights'}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+        ) : null}
         <DateRangePicker
           checkIn={checkIn}
           checkOut={checkOut}
           invalid={Boolean(errors.checkIn || errors.checkOut)}
           errorId={`${formId}-dates-error`}
+          compact={variant === 'results'}
           onChange={(from, to) => {
             setValue('checkIn', from, { shouldValidate: false });
             setValue('checkOut', to, { shouldValidate: true });
@@ -109,7 +179,7 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
               >
                 <Users size={22} strokeWidth={1.8} aria-hidden="true" />
                 <span className={styles.fieldText}>
-                  <span className={styles.fieldLabel}>Rooms &amp; guests</span>
+                  <span className={styles.fieldLabel}>{copy.roomsAndGuests}</span>
                   <span className={styles.fieldValue}>{guestsLabel}</span>
                 </span>
                 <ChevronDown className={styles.chevron} size={17} aria-hidden="true" />
@@ -119,16 +189,18 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
             <PopoverContent
               align="end"
               sideOffset={10}
-              aria-label="Rooms and guests"
+              aria-label={copy.roomsAndGuests}
+              lang={locale}
+              dir={dir}
               className={`${styles.popover} ${styles.guestsPopover}`}
             >
               <div className={styles.popoverHeading}>
-                <strong>Who’s coming along?</strong>
+                <strong>{copy.guestsTitle}</strong>
                 <PopoverClose asChild>
                   <button
                     type="button"
                     className={styles.closeButton}
-                    aria-label="Close rooms and guests"
+                    aria-label={copy.closeGuests}
                   >
                     <X size={20} aria-hidden="true" />
                   </button>
@@ -139,30 +211,30 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                 if (!room) return null;
                 return (
                   <fieldset key={field.id} className={styles.room}>
-                    <legend>Room {index + 1}</legend>
+                    <legend>{copy.room(index + 1)}</legend>
                     {fields.length > 1 ? (
                       <button
                         type="button"
                         className={styles.removeRoom}
                         onClick={() => remove(index)}
-                        aria-label={`Remove room ${index + 1}`}
+                        aria-label={copy.removeRoom(index + 1)}
                       >
-                        Remove
+                        {copy.remove}
                       </button>
                     ) : null}
                     <div className={styles.occupancyRow}>
                       <span>
-                        Adults <small>Ages 18+</small>
+                        {copy.adults} <small>{copy.adultAges}</small>
                       </span>
                       <div
                         className={styles.stepper}
                         role="group"
-                        aria-label={`Adults in room ${index + 1}`}
+                        aria-label={copy.adultsInRoom(index + 1)}
                       >
                         <button
                           type="button"
                           disabled={room.adults <= 1}
-                          aria-label={`Remove an adult from room ${index + 1}`}
+                          aria-label={copy.removeAdult(index + 1)}
                           onClick={() =>
                             setValue(`rooms.${index}.adults`, room.adults - 1, {
                               shouldValidate: true,
@@ -175,7 +247,7 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                         <button
                           type="button"
                           disabled={room.adults >= 4}
-                          aria-label={`Add an adult to room ${index + 1}`}
+                          aria-label={copy.addAdult(index + 1)}
                           onClick={() =>
                             setValue(`rooms.${index}.adults`, room.adults + 1, {
                               shouldValidate: true,
@@ -188,17 +260,17 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                     </div>
                     <div className={styles.occupancyRow}>
                       <span>
-                        Children <small>Ages 0–17</small>
+                        {copy.children} <small>{copy.childAges}</small>
                       </span>
                       <div
                         className={styles.stepper}
                         role="group"
-                        aria-label={`Children in room ${index + 1}`}
+                        aria-label={copy.childrenInRoom(index + 1)}
                       >
                         <button
                           type="button"
                           disabled={room.childrenAges.length === 0}
-                          aria-label={`Remove a child from room ${index + 1}`}
+                          aria-label={copy.removeChild(index + 1)}
                           onClick={() =>
                             setValue(
                               `rooms.${index}.childrenAges`,
@@ -213,7 +285,7 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                         <button
                           type="button"
                           disabled={room.childrenAges.length >= 2}
-                          aria-label={`Add a child to room ${index + 1}`}
+                          aria-label={copy.addChild(index + 1)}
                           onClick={() =>
                             setValue(
                               `rooms.${index}.childrenAges`,
@@ -234,7 +306,7 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                           <div className={styles.childAges}>
                             {ageField.value.map((age, childIndex) => (
                               <label key={`${field.id}-${childIndex}`}>
-                                Child {childIndex + 1} age
+                                {copy.childAge(childIndex + 1)}
                                 <select
                                   ref={childIndex === 0 ? ageField.ref : undefined}
                                   value={Number.isFinite(age) ? age : ''}
@@ -256,11 +328,11 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                                   }
                                 >
                                   <option value="" disabled>
-                                    Select age
+                                    {copy.selectAge}
                                   </option>
                                   {Array.from({ length: 18 }, (_, childAge) => (
                                     <option key={childAge} value={childAge}>
-                                      {childAge === 0 ? 'Under 1' : childAge}
+                                      {childAge === 0 ? copy.underOne : childAge}
                                     </option>
                                   ))}
                                 </select>
@@ -272,7 +344,7 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                     ) : null}
                     {errors.rooms?.[index]?.childrenAges ? (
                       <p id={`${formId}-ages-${index}`} className={styles.error}>
-                        Select each child’s age at check-in.
+                        {copy.childAgeError}
                       </p>
                     ) : null}
                   </fieldset>
@@ -284,15 +356,15 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                 disabled={fields.length >= 4}
                 onClick={() => append({ adults: 2, childrenAges: [] })}
               >
-                <Plus size={16} aria-hidden="true" /> Add another room
+                <Plus size={16} aria-hidden="true" /> {copy.addRoom}
               </button>
               <div className={styles.preferences}>
                 <label htmlFor={`${formId}-nationality`}>
-                  Guest nationality
+                  {copy.nationality}
                   <input
                     id={`${formId}-nationality`}
                     form={formId}
-                    placeholder="e.g. PK"
+                    placeholder={copy.nationalityPlaceholder}
                     maxLength={2}
                     autoComplete="country"
                     {...register('nationality', {
@@ -307,48 +379,44 @@ export function HotelSearchForm({ initialSearch }: { initialSearch?: HotelSearch
                   />
                 </label>
                 <label htmlFor={`${formId}-currency`}>
-                  Currency
-                  <select id={`${formId}-currency`} {...register('currency')}>
-                    {['USD', 'EUR', 'GBP', 'AED', 'PKR', 'INR'].map((currency) => (
-                      <option key={currency}>{currency}</option>
-                    ))}
-                  </select>
+                  {copy.currency}
+                  <output id={`${formId}-currency`} dir="ltr">
+                    {searchCurrency}
+                  </output>
                 </label>
               </div>
               <p id={`${formId}-nationality-help`} className={styles.hint}>
-                Use your two-letter nationality code.
+                {copy.nationalityHelp}
               </p>
               {errors.nationality ? (
                 <p id={`${formId}-nationality-error`} className={styles.error}>
-                  Enter a two-letter nationality code, for example PK.
+                  {copy.nationalityError}
                 </p>
               ) : null}
               <PopoverClose asChild>
                 <button type="button" className={styles.doneButton}>
-                  Done
+                  {copy.done}
                 </button>
               </PopoverClose>
             </PopoverContent>
           </Popover>
         </div>
 
-        <button type="submit" className={styles.searchButton} aria-label="Search hotels">
+        <button type="submit" className={styles.searchButton} aria-label={copy.searchHotels}>
           <Search size={21} strokeWidth={2.5} aria-hidden="true" />
-          Search
+          {copy.search}
         </button>
       </div>
       {Object.keys(errors).length > 0 ? (
         <div className={styles.errors} role="alert">
           {errors.destination ? (
-            <p id={`${formId}-destination-error`}>Enter a destination city code.</p>
+            <p id={`${formId}-destination-error`}>{copy.destinationError}</p>
           ) : null}
           {errors.checkIn || errors.checkOut ? (
-            <p id={`${formId}-dates-error`}>
-              Choose valid check-in and check-out dates for your stay.
-            </p>
+            <p id={`${formId}-dates-error`}>{copy.datesError}</p>
           ) : null}
           {errors.nationality || errors.rooms || errors.currency ? (
-            <p id={`${formId}-guests-error`}>Check the guest details before searching.</p>
+            <p id={`${formId}-guests-error`}>{copy.guestsError}</p>
           ) : null}
         </div>
       ) : null}

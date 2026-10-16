@@ -13,6 +13,7 @@ const environmentSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     HOST: z.string().default('0.0.0.0'),
+    HOTEL_DATA_MODE: z.enum(['live', 'mock']).default('live'),
     DATABASE_URL: z
       .url()
       .refine((url) => ['postgres:', 'postgresql:'].includes(new URL(url).protocol)),
@@ -43,8 +44,16 @@ const environmentSchema = z
       issue('TBO_READS_ENABLED', 'Enabled supplier reads require a URL and credentials.');
     if (env.TBO_BASE_URL) {
       const parsed = z.url().safeParse(env.TBO_BASE_URL);
-      if (!parsed.success || new URL(env.TBO_BASE_URL).protocol !== 'https:')
+      if (!parsed.success || new URL(env.TBO_BASE_URL).protocol !== 'https:') {
         issue('TBO_BASE_URL', 'Supplier credentials require an HTTPS endpoint.');
+      } else {
+        const endpoint = new URL(env.TBO_BASE_URL);
+        if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash)
+          issue(
+            'TBO_BASE_URL',
+            'Supplier endpoints cannot contain credentials, queries or fragments.',
+          );
+      }
     }
     for (const party of env.CLERK_AUTHORIZED_PARTIES.split(',')) {
       const url = z.url().safeParse(party.trim());
@@ -52,6 +61,8 @@ const environmentSchema = z
         issue('CLERK_AUTHORIZED_PARTIES', 'Supply comma-separated HTTP origins.');
     }
     if (env.NODE_ENV === 'production') {
+      if (env.HOTEL_DATA_MODE === 'mock')
+        issue('HOTEL_DATA_MODE', 'Mock hotel data is forbidden in production.');
       if (!env.CLERK_SECRET_KEY && !env.CLERK_JWT_KEY)
         issue('CLERK_SECRET_KEY', 'Production requires Clerk verification credentials.');
       if (!env.WEB_ORIGIN.startsWith('https://')) issue('WEB_ORIGIN', 'Production requires HTTPS.');
@@ -62,6 +73,8 @@ const environmentSchema = z
       )
         issue('CLERK_AUTHORIZED_PARTIES', 'Production requires explicit HTTPS origins.');
     }
+    if (env.HOTEL_DATA_MODE === 'mock' && (env.TBO_READS_ENABLED || env.JOBS_ENABLED))
+      issue('HOTEL_DATA_MODE', 'Mock hotel data cannot enable supplier reads or background jobs.');
   });
 
 export type Environment = z.infer<typeof environmentSchema>;

@@ -1,15 +1,12 @@
-import {
-  type HotelSearchRequest,
-  type RecheckRequest,
-  recheckRequestSchema,
-} from '@hotel/contracts';
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { type RecheckRequest, recheckRequestSchema } from '@hotel/contracts';
+import { Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthenticatedRequest } from '../../common/types/authenticated-request';
-import { hotelSearchQuerySchema } from '../search/search.schemas';
+import { MockSearchService } from '../search/mock-search.service';
+import { hotelSearchQuerySchema, mockHotelSearchQuerySchema } from '../search/search.schemas';
 import { SearchService } from '../search/search.service';
 import { HotelsService } from './hotels.service';
 
@@ -17,7 +14,7 @@ import { HotelsService } from './hotels.service';
 export class HotelsController {
   constructor(
     private readonly hotels: HotelsService,
-    private readonly search: SearchService,
+    @Inject(SearchService) private readonly search: SearchService | MockSearchService,
   ) {}
 
   @Public()
@@ -28,8 +25,13 @@ export class HotelsController {
 
   @Public()
   @Get('search')
-  searchHotels(@Query(new ZodValidationPipe(hotelSearchQuerySchema)) query: HotelSearchRequest) {
-    return this.search.searchHotels(query);
+  searchHotels(@Query() query: unknown) {
+    if (this.search instanceof MockSearchService) {
+      const input = new ZodValidationPipe(mockHotelSearchQuerySchema).transform(query);
+      return this.search.searchHotels(input);
+    }
+    const input = new ZodValidationPipe(hotelSearchQuerySchema).transform(query);
+    return this.search.searchHotels(input);
   }
 
   @Post('recheck')

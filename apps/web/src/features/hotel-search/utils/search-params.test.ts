@@ -1,12 +1,7 @@
-import type { HotelSearchRequest } from '@hotel/contracts';
+import type { HotelSearchRequest, MockHotelSearchRequest } from '@hotel/contracts';
 import { describe, expect, it } from 'vitest';
 
-import {
-  defaultMockSearch,
-  parseHotelSearch,
-  searchStayOnly,
-  serializeHotelSearch,
-} from './search-params';
+import { parseHotelSearch, searchStayOnly, serializeHotelSearch } from './search-params';
 
 const fullSearch: HotelSearchRequest = {
   destination: 'dubai',
@@ -123,14 +118,52 @@ describe('shareable search URLs', () => {
     expect(fullSearch).toEqual(original);
   });
 
-  it('uses future UTC dates for the explicit mock default even across a year boundary', () => {
-    const request = defaultMockSearch('AED', new Date('2030-12-31T23:45:00Z'));
-    expect(request).toMatchObject({
-      destination: 'dubai',
-      checkIn: '2031-01-30',
-      checkOut: '2031-02-06',
-      currency: 'AED',
+  it('keeps an empty mock search empty without inventing dates, destination or guests', () => {
+    const params = new URLSearchParams();
+    const request = parseHotelSearch(params, 'mock', 'AED');
+    expect(request).toEqual({ currency: 'AED' });
+    expect(params.toString()).toBe('');
+    expect(serializeHotelSearch(request!)).toBe('currency=AED');
+    expect(parseHotelSearch(params)).toBeNull();
+  });
+
+  it('round trips partial mock searches and global filters without requiring a destination', () => {
+    const request: MockHotelSearchRequest = {
+      currency: 'GBP',
+      filters: fullSearch.filters,
+      sort: 'rating',
+      page: 2,
+      pageSize: 5,
+    };
+    const serialized = serializeHotelSearch(request);
+    expect(parseHotelSearch(new URLSearchParams(serialized), 'mock')).toEqual(request);
+    expect(parseHotelSearch(new URLSearchParams(serialized))).toBeNull();
+    expect(serialized).not.toContain('destination=');
+    expect(serialized).not.toContain('checkIn=');
+    expect(parseHotelSearch(new URLSearchParams('destination=london'), 'mock')).toEqual({
+      destination: 'london',
+      currency: 'USD',
     });
-    expect(parseHotelSearch(new URLSearchParams(serializeHotelSearch(request)))).toEqual(request);
+    expect(searchStayOnly(request)).toEqual({ currency: 'GBP' });
+  });
+
+  it('treats empty mock scalar criteria as omitted while rejecting malformed supplied values', () => {
+    expect(
+      parseHotelSearch(new URLSearchParams('destination=&checkIn=&checkOut=&nationality='), 'mock'),
+    ).toEqual({ currency: 'USD' });
+    for (const query of [
+      'checkIn=invalid',
+      'checkIn=2030-06-10&checkOut=2030-06-09',
+      'nationality=wrong',
+      'rooms=[]',
+      'rooms=not-json',
+      'filters=not-json',
+      'filters=%7B%22maxPrice%22%3A-1%7D',
+      'sort=random',
+      'page=0',
+      'currency=XXX',
+    ]) {
+      expect(parseHotelSearch(new URLSearchParams(query), 'mock'), query).toBeNull();
+    }
   });
 });

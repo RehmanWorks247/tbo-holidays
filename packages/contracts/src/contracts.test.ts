@@ -1,9 +1,63 @@
 import { describe, expect, it } from 'vitest';
 
 import { createBookingRequestSchema } from './bookings';
-import { cancellationPolicySchema, hotelSearchRequestSchema, validateStay } from './hotels';
+import {
+  cancellationPolicySchema,
+  hotelSearchRequestSchema,
+  mockHotelSearchRequestSchema,
+  validateStay,
+} from './hotels';
 
 describe('public input contracts', () => {
+  it('allows omitted mock criteria without weakening live search requirements', () => {
+    expect(mockHotelSearchRequestSchema.parse({})).toEqual({ currency: 'USD' });
+    expect(
+      mockHotelSearchRequestSchema.parse({
+        destination: ' ',
+        checkIn: ' ',
+        checkOut: ' ',
+        nationality: ' ',
+        currency: ' ',
+      }),
+    ).toMatchObject({
+      destination: undefined,
+      checkIn: undefined,
+      checkOut: undefined,
+      nationality: undefined,
+      currency: 'USD',
+    });
+    expect(
+      mockHotelSearchRequestSchema.parse({
+        destination: '',
+        checkIn: '',
+        checkOut: '',
+        nationality: '',
+      }),
+    ).toMatchObject({
+      destination: undefined,
+      checkIn: undefined,
+      checkOut: undefined,
+      nationality: undefined,
+      currency: 'USD',
+    });
+    expect(mockHotelSearchRequestSchema.parse({ filters: { starRatings: [2] } })).toEqual({
+      currency: 'USD',
+      filters: { starRatings: [2] },
+    });
+    expect(hotelSearchRequestSchema.safeParse({}).success).toBe(false);
+    expect(hotelSearchRequestSchema.safeParse({ filters: {} }).success).toBe(false);
+    for (const invalid of [
+      { checkIn: 'not-a-date' },
+      { checkIn: '2100-11-08', checkOut: '2100-11-01' },
+      { nationality: 'invalid' },
+      { rooms: [] },
+      { currency: 'XXX' },
+      { filters: { minPrice: 100, maxPrice: 50 } },
+      { totalAmount: 1 },
+    ])
+      expect(mockHotelSearchRequestSchema.safeParse(invalid).success).toBe(false);
+  });
+
   it('rejects browser supplied authoritative prices', () => {
     expect(
       createBookingRequestSchema.safeParse({

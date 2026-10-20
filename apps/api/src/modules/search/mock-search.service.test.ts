@@ -1,12 +1,12 @@
 import { type HotelSearchRequest, hotelSearchResponseSchema } from '@hotel/contracts';
 import { ConfigService } from '@nestjs/config';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMockHotelDatabase } from '../../../test/mock-hotel-database.fixture';
 import type { Environment } from '../../config/environment';
 import { MockHotelSupplier } from '../hotels/mock-hotel.supplier';
 import { MockSearchService } from './mock-search.service';
-import { hotelSearchQuerySchema } from './search.schemas';
+import { hotelSearchQuerySchema, mockHotelSearchQuerySchema } from './search.schemas';
 
 const criteria: HotelSearchRequest = {
   destination: 'dubai',
@@ -18,19 +18,138 @@ const criteria: HotelSearchRequest = {
   pageSize: 50,
 };
 
-function setup() {
-  const supplier = new MockHotelSupplier(
-    new ConfigService<Environment, true>({
-      HOTEL_DATA_MODE: 'mock',
-      NODE_ENV: 'test',
-      MAX_STAY_NIGHTS: 30,
-    }),
-    createMockHotelDatabase().database,
-  );
-  return { supplier, service: new MockSearchService(supplier) };
+function setup(maximumNights = 30) {
+  const config = new ConfigService<Environment, true>({
+    HOTEL_DATA_MODE: 'mock',
+    NODE_ENV: 'test',
+    MAX_STAY_NIGHTS: maximumNights,
+  });
+  const supplier = new MockHotelSupplier(config, createMockHotelDatabase().database);
+  return { supplier, service: new MockSearchService(supplier, config) };
 }
 
 describe('read-only hotel preview', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('browses every seeded hotel without criteria and declares the backend pricing stay', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-10-01T12:00:00Z'));
+    const { service } = setup();
+    const all = hotelSearchResponseSchema.parse(
+      await service.searchHotels(mockHotelSearchQuerySchema.parse({})),
+    );
+    expect(all.hotels).toHaveLength(45);
+    expect(new Set(all.hotels.map(({ hotel }) => hotel.id)).size).toBe(45);
+    expect(new Set(all.hotels.map(({ hotel }) => hotel.city)).size).toBe(4);
+    expect(all.metadata).toMatchObject({
+      source: 'mock',
+      destination: 'All destinations',
+      total: 45,
+      pageSize: 50,
+      totalPages: 1,
+      previewStay: {
+        checkIn: '2099-10-31',
+        checkOut: '2099-11-07',
+        nationality: 'GB',
+        currency: 'USD',
+        rooms: [{ adults: 2, childrenAges: [] }],
+      },
+    });
+    for (const destination of ['dubai', 'london', 'antalya', 'bali']) {
+      const local = await service.searchHotels({
+        ...all.metadata!.previewStay!,
+        destination,
+      });
+      for (const result of local.hotels) {
+        expect(all.hotels.find(({ hotel }) => hotel.id === result.hotel.id)).toEqual(result);
+      }
+    }
+  });
+
+  it('applies filters, facets, global ordering and pagination across all destinations', async () => {
+    const { service } = setup();
+    const input = mockHotelSearchQuerySchema.parse({
+      filters: JSON.stringify({ starRatings: [1, 2] }),
+      sort: 'price-asc',
+    });
+    const filtered = await service.searchHotels(input);
+    expect(filtered.hotels.length).toBeGreaterThan(4);
+    expect(filtered.hotels.length).toBeLessThan(45);
+    expect(new Set(filtered.hotels.map(({ hotel }) => hotel.city)).size).toBe(4);
+    expect(filtered.hotels.every(({ hotel }) => [1, 2].includes(hotel.starRating!))).toBe(true);
+    const totals = filtered.hotels.map(({ rates }) => rates[0]!.price.totalAmount);
+    expect(totals).toEqual([...totals].sort((a, b) => a - b));
+    const first = await service.searchHotels({ ...input, pageSize: 4, page: 1 });
+    const second = await service.searchHotels({ ...input, pageSize: 4, page: 2 });
+    expect([...first.hotels, ...second.hotels].map(({ hotel }) => hotel.id)).toEqual(
+      filtered.hotels.slice(0, 8).map(({ hotel }) => hotel.id),
+    );
+    expect(first.metadata).toMatchObject({
+      total: filtered.hotels.length,
+      pageSize: 4,
+      totalPages: Math.ceil(filtered.hotels.length / 4),
+    });
+    const all = await service.searchHotels({ currency: 'USD' });
+    expect(first.metadata?.facets).toEqual(all.metadata?.facets);
+    expect(first.metadata?.facets.starRatings.reduce((sum, facet) => sum + facet.count, 0)).toBe(
+      45,
+    );
+  });
+
+  it('accepts location alone and honors explicit partial stay, occupancy and currency inputs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-10-01T12:00:00Z'));
+    const { service } = setup();
+    const location = await service.searchHotels({ destination: 'london', currency: 'USD' });
+    expect(location.hotels.length).toBeGreaterThan(0);
+    expect(location.hotels.every(({ hotel }) => hotel.city === 'London')).toBe(true);
+    const arrival = await service.searchHotels({
+      checkIn: '2100-01-15',
+      nationality: 'PK',
+      currency: 'GBP',
+      rooms: [{ adults: 3, childrenAges: [8] }],
+    });
+    expect(arrival.metadata?.previewStay).toEqual({
+      checkIn: '2100-01-15',
+      checkOut: '2100-01-22',
+      nationality: 'PK',
+      currency: 'GBP',
+      rooms: [{ adults: 3, childrenAges: [8] }],
+    });
+    expect(arrival.hotels.every(({ hotel }) => !hotel.facilities.includes('Adults only'))).toBe(
+      true,
+    );
+    const departure = await service.searchHotels({ checkOut: '2100-01-15', currency: 'USD' });
+    expect(departure.metadata?.previewStay).toMatchObject({
+      checkIn: '2100-01-08',
+      checkOut: '2100-01-15',
+    });
+    const nearDeparture = await service.searchHotels({ checkOut: '2099-10-03', currency: 'USD' });
+    expect(nearDeparture.metadata?.previewStay).toMatchObject({
+      checkIn: '2099-10-01',
+      checkOut: '2099-10-03',
+    });
+  });
+
+  it('bounds omitted dates by configured stay limits and rejects explicit invalid stays', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-10-01T12:00:00Z'));
+    const { service } = setup(3);
+    expect((await service.searchHotels({ currency: 'USD' })).metadata?.previewStay).toMatchObject({
+      checkIn: '2099-10-31',
+      checkOut: '2099-11-03',
+    });
+    for (const stay of [
+      { checkIn: '2099-09-30' },
+      { checkOut: '2099-10-01' },
+      { checkIn: '2100-01-08', checkOut: '2100-01-07' },
+      { checkIn: '2100-01-01', checkOut: '2100-01-05' },
+    ]) {
+      await expect(service.searchHotels({ ...stay, currency: 'USD' })).rejects.toMatchObject({
+        code: 'INVALID_STAY',
+      });
+    }
+  });
   it('requires explicit non-production mode', () => {
     for (const values of [
       { HOTEL_DATA_MODE: 'live', NODE_ENV: 'test' },
@@ -72,7 +191,7 @@ describe('read-only hotel preview', () => {
     const result = hotelSearchResponseSchema.parse(await service.searchHotels(criteria));
     expect(result.metadata).toMatchObject({
       source: 'mock',
-      total: 24,
+      total: 26,
       destination: 'Dubai',
       page: 1,
       totalPages: 1,
@@ -84,7 +203,7 @@ describe('read-only hotel preview', () => {
           rates.every((rate) => rate.rateId.startsWith('mock:') && rate.price.currency === 'GBP'),
       ),
     ).toBe(true);
-    expect(new Set(result.hotels.map(({ hotel }) => hotel.id)).size).toBe(24);
+    expect(new Set(result.hotels.map(({ hotel }) => hotel.id)).size).toBe(26);
     expect(result.metadata?.facets.minPrice).toBeGreaterThan(10000);
     expect(result.metadata?.facets.maxPrice).toBeGreaterThan(result.metadata?.facets.minPrice ?? 0);
   });
@@ -167,7 +286,7 @@ describe('read-only hotel preview', () => {
     expect(result.hotels).toHaveLength(1);
     expect(result.hotels[0]?.hotel.name).toBe('The Palm Azure Resort');
     const whitespace = await service.searchHotels({ ...criteria, filters: { name: '   ' } });
-    expect(whitespace.metadata?.total).toBe(24);
+    expect(whitespace.metadata?.total).toBe(26);
   });
 
   it('sorts all inventory before pagination and uses stable page boundaries', async () => {
@@ -187,7 +306,7 @@ describe('read-only hotel preview', () => {
       page: 2,
       pageSize: 5,
     });
-    expect(page1.metadata).toMatchObject({ total: 24, totalPages: 5, page: 1, pageSize: 5 });
+    expect(page1.metadata).toMatchObject({ total: 26, totalPages: 6, page: 1, pageSize: 5 });
     expect([...page1.hotels, ...page2.hotels].map(({ hotel }) => hotel.id)).toEqual(
       all.hotels.slice(0, 10).map(({ hotel }) => hotel.id),
     );
@@ -205,7 +324,7 @@ describe('read-only hotel preview', () => {
       ...criteria,
       rooms: [{ adults: 2, childrenAges: [8] }],
     });
-    expect(result.hotels.length).toBeLessThan(24);
+    expect(result.hotels.length).toBeLessThan(26);
     expect(result.hotels.every(({ hotel }) => !hotel.facilities.includes('Adults only'))).toBe(
       true,
     );
@@ -233,13 +352,47 @@ describe('read-only hotel preview', () => {
     const { service, supplier } = setup();
     for (const { id, name } of (await supplier.getDestinations()).destinations) {
       const result = await service.searchHotels({ ...criteria, destination: id });
-      expect(result.hotels.length).toBeGreaterThanOrEqual(4);
+      expect(result.hotels.length).toBeGreaterThanOrEqual(6);
       expect(result.hotels.every(({ hotel }) => hotel.city === name)).toBe(true);
     }
     const empty = await service.searchHotels({ ...criteria, destination: 'unknown' });
     expect(empty.hotels).toEqual([]);
     expect(empty.metadata).toMatchObject({ total: 0, totalPages: 0 });
   });
+
+  it.each(['dubai', 'london', 'antalya', 'bali'])(
+    'has matching inventory for every star tier and narrowing guest-rating filters in %s',
+    async (destination) => {
+      const { service } = setup();
+      const request = { ...criteria, destination };
+      const all = await service.searchHotels(request);
+      for (const starRating of [1, 2, 3, 4, 5]) {
+        const filtered = await service.searchHotels({
+          ...request,
+          filters: { starRatings: [starRating] },
+        });
+        expect(filtered.hotels.length).toBeGreaterThan(0);
+        expect(filtered.hotels.length).toBeLessThan(all.hotels.length);
+        expect(filtered.hotels.every(({ hotel }) => hotel.starRating === starRating)).toBe(true);
+        expect(
+          all.metadata?.facets.starRatings.find(({ value }) => value === starRating)?.count,
+        ).toBe(filtered.hotels.length);
+      }
+      let previousCount = all.hotels.length;
+      for (const minReviewScore of [7, 8, 9]) {
+        const filtered = await service.searchHotels({
+          ...request,
+          filters: { minReviewScore },
+        });
+        expect(filtered.hotels.length).toBeGreaterThan(0);
+        expect(filtered.hotels.length).toBeLessThan(previousCount);
+        expect(
+          filtered.hotels.every(({ hotel }) => (hotel.reviewScore ?? 0) >= minReviewScore),
+        ).toBe(true);
+        previousCount = filtered.hotels.length;
+      }
+    },
+  );
 
   it('returns independent detail objects and rejects nonexistent properties', async () => {
     const { supplier } = setup();

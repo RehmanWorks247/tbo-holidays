@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { useHotelDestinations } from '@/features/hotel-search/queries/use-hotel-destinations';
 import { parseHotelSearch } from '@/features/hotel-search/utils/search-params';
 import { siteLocales, suggestedLocales } from '@/lib/site-locales';
 import { type Currency, replaceCurrencyInUrl } from '@/lib/site-preferences';
@@ -195,8 +196,11 @@ function RouteRegionalSelectors() {
   const params = useSearchParams();
   const router = useRouter();
   const { currency } = useSitePreferences();
+  const destinations = useHotelDestinations();
   const isHotelSearch = pathname === '/hotels' || pathname.startsWith('/hotels/');
-  const activeSearch = isHotelSearch ? parseHotelSearch(params) : null;
+  const activeSearch = isHotelSearch
+    ? parseHotelSearch(params, destinations.data?.source ?? 'live', currency)
+    : null;
   const activeCurrency = activeSearch?.currency ?? currency;
 
   return (
@@ -208,6 +212,7 @@ function RouteRegionalSelectors() {
             replaceCurrencyInUrl(
               `${pathname}?${params.toString()}${window.location.hash}`,
               nextCurrency,
+              activeCurrency,
             ),
             { scroll: false },
           );

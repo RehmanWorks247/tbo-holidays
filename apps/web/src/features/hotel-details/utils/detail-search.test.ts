@@ -41,4 +41,36 @@ describe('hotel detail availability', () => {
   it('does not request broad inventory while hotel details are still loading', () => {
     expect(hotelDetailsSearch(null, undefined)).toBeNull();
   });
+
+  it('loads a selected mock hotel without adding a destination, dates or guests', () => {
+    const request = hotelDetailsSearch(
+      {
+        currency: 'GBP',
+        filters: { starRatings: [5], refundable: true },
+        sort: 'stars',
+        page: 3,
+      },
+      { id: 'hotel-1', name: 'Palm House', images: [], facilities: [], source: 'mock' },
+    );
+    expect(request).toEqual({
+      currency: 'GBP',
+      filters: { name: 'Palm House' },
+      page: 1,
+      pageSize: 50,
+    });
+    expect(request?.destination).toBeUndefined();
+    expect(request?.checkIn).toBeUndefined();
+    expect(request?.checkOut).toBeUndefined();
+    expect(request?.rooms).toBeUndefined();
+  });
+
+  it('retains independently selected mock stay fields', () => {
+    const request = hotelDetailsSearch(
+      { currency: 'GBP', checkIn: '2030-06-10', rooms: [{ adults: 3, childrenAges: [] }] },
+      { id: 'hotel-1', name: 'Palm House', images: [], facilities: [], source: 'mock' },
+    );
+    expect(request?.checkIn).toBe('2030-06-10');
+    expect(request?.checkOut).toBeUndefined();
+    expect(request?.rooms).toEqual([{ adults: 3, childrenAges: [] }]);
+  });
 });

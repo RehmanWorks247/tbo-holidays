@@ -1,13 +1,13 @@
-import type { HotelSearchRequest } from '@hotel/contracts';
+import type { MockHotelSearchRequest } from '@hotel/contracts';
 import { useQuery } from '@tanstack/react-query';
 
 import { searchStayOnly } from '@/features/hotel-search/utils/search-params';
 import { hotelsApi } from '@/services/api/hotels.api';
 
-export const hotelSearchKey = (request: HotelSearchRequest | null) =>
+export const hotelSearchKey = (request: MockHotelSearchRequest | null) =>
   ['hotel-search', request] as const;
 
-export function useHotelSearch(request: HotelSearchRequest | null) {
+export function useHotelSearch(request: MockHotelSearchRequest | null) {
   return useQuery({
     queryKey: hotelSearchKey(request),
     queryFn: ({ signal }) => {
@@ -21,7 +21,7 @@ export function useHotelSearch(request: HotelSearchRequest | null) {
     placeholderData: (previous, previousQuery) => {
       const old = previousQuery?.queryKey[1];
       if (!old || typeof old !== 'object' || !request) return undefined;
-      const criteria = searchStayOnly(old as HotelSearchRequest);
+      const criteria = searchStayOnly(old as MockHotelSearchRequest);
       const nextCriteria = searchStayOnly(request);
       return JSON.stringify(criteria) === JSON.stringify(nextCriteria) ? previous : undefined;
     },

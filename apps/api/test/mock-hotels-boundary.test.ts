@@ -65,6 +65,78 @@ describe('preview hotel HTTP boundaries', () => {
     expect(response.body.requestId).toBe(response.headers['x-request-id']);
   });
 
+  it.each([
+    {},
+    { filters: '{}' },
+    { destination: '', checkIn: ' ', checkOut: '', nationality: '', currency: '' },
+  ])('returns all preview hotels when search criteria are empty: %j', async (query) => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/hotels/search')
+      .query(query)
+      .expect(200);
+    const data = hotelSearchResponseSchema.parse(response.body.data);
+    expect(data.hotels).toHaveLength(45);
+    expect(new Set(data.hotels.map(({ hotel }) => hotel.city)).size).toBe(4);
+    expect(data.metadata).toMatchObject({
+      source: 'mock',
+      destination: 'All destinations',
+      total: 45,
+      pageSize: 50,
+      previewStay: { currency: 'USD', nationality: 'GB', rooms: [{ adults: 2, childrenAges: [] }] },
+    });
+  });
+
+  it('filters the complete preview catalogue without any location or stay fields', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/hotels/search')
+      .query({ filters: JSON.stringify({ starRatings: [1, 2] }), sort: 'price-asc' })
+      .expect(200);
+    const data = hotelSearchResponseSchema.parse(response.body.data);
+    expect(data.hotels.length).toBeGreaterThan(4);
+    expect(data.hotels.length).toBeLessThan(45);
+    expect(new Set(data.hotels.map(({ hotel }) => hotel.city)).size).toBe(4);
+    expect(data.hotels.every(({ hotel }) => [1, 2].includes(hotel.starRating!))).toBe(true);
+    const totals = data.hotels.map(({ rates }) => rates[0]!.price.totalAmount);
+    expect(totals).toEqual([...totals].sort((a, b) => a - b));
+  });
+
+  it('allows a destination alone while preserving unknown-destination empty results', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/hotels/search')
+      .query({ destination: 'london' })
+      .expect(200);
+    const data = hotelSearchResponseSchema.parse(response.body.data);
+    expect(data.hotels.length).toBeGreaterThan(0);
+    expect(data.hotels.every(({ hotel }) => hotel.city === 'London')).toBe(true);
+    const empty = await request(app.getHttpServer())
+      .get('/api/v1/hotels/search')
+      .query({ destination: 'unknown' })
+      .expect(200);
+    expect(empty.body.data.hotels).toEqual([]);
+  });
+
+  it.each([
+    { checkIn: 'not-a-date' },
+    { checkIn: '2020-01-01' },
+    { checkOut: '2020-01-01' },
+    { checkIn: '2100-01-02', checkOut: '2100-01-01' },
+    { checkIn: '2100-01-01', checkOut: '2100-03-01' },
+    { currency: 'XXX' },
+    { nationality: 'unknown' },
+    { rooms: '[]' },
+    { rooms: JSON.stringify([{ adults: 0, childrenAges: [] }]) },
+    { filters: '{' },
+    { filters: JSON.stringify({ minPrice: 200, maxPrice: 100 }) },
+    { totalAmount: '1' },
+    { pageSize: '51' },
+  ])('rejects invalid explicit criteria instead of substituting defaults: %j', async (query) => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/hotels/search')
+      .query(query)
+      .expect(400);
+    expect(['VALIDATION_ERROR', 'INVALID_STAY']).toContain(response.body.code);
+  });
+
   it('validates query filters, sorts and paginates server responses over HTTP', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/hotels/search')
@@ -114,5 +186,59 @@ describe('preview hotel HTTP boundaries', () => {
     }
     await request(app.getHttpServer()).post('/api/v1/bookings').send({}).expect(404);
     await request(app.getHttpServer()).post('/api/v1/payments/checkout').send({}).expect(404);
+  });
+});
+
+describe('live hotel search HTTP validation', () => {
+  let app: INestApplication;
+  const searchHotels = vi.fn(async () => ({ hotels: [] }));
+
+  beforeAll(async () => {
+    const module = await Test.createTestingModule({
+      controllers: [HotelsController],
+      providers: [
+        { provide: HotelsService, useValue: {} },
+        { provide: SearchService, useValue: { searchHotels } },
+      ],
+    }).compile();
+    app = module.createNestApplication({ logger: false });
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalFilters(new ApiExceptionFilter({ error: vi.fn() } as unknown as PinoLogger));
+    app.useGlobalInterceptors(new ApiResponseInterceptor());
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  it('still requires location, valid dates, nationality and rooms before invoking live search', async () => {
+    const valid = {
+      destination: '100',
+      checkIn: '2100-01-01',
+      checkOut: '2100-01-08',
+      nationality: 'GB',
+      rooms: JSON.stringify([{ adults: 2, childrenAges: [] }]),
+    };
+    const incomplete: Record<string, string>[] = [{}, { filters: '{}' }];
+    for (const field of Object.keys(valid)) {
+      const missing: Record<string, string> = { ...valid };
+      delete missing[field];
+      incomplete.push(missing);
+    }
+    for (const query of incomplete) {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/hotels/search')
+        .query(query)
+        .expect(400);
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    }
+    expect(searchHotels).not.toHaveBeenCalled();
+    await request(app.getHttpServer()).get('/api/v1/hotels/search').query(valid).expect(200);
+    expect(searchHotels).toHaveBeenCalledWith({
+      ...valid,
+      currency: 'USD',
+      rooms: [{ adults: 2, childrenAges: [] }],
+    });
   });
 });

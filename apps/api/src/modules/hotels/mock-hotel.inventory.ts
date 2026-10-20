@@ -111,6 +111,8 @@ const dubai: Fixture[] = [
   ['Metro Heights Hotel', 3, 7.6, 463, 'City Walk', 54, 'city-hotel', 4800, 'Hotel'],
   ['Creek Quay Residences', 4, 8.3, 689, 'Dubai Creek', 91, 'deluxe-room', 9800, 'Aparthotel'],
   ['Royal Azure Beach Hotel', 5, 9.7, 1528, 'Jumeirah Beach', 428, 'beachfront-hotel', 0, 'Resort'],
+  ['Deira Creek Budget Hotel', 1, 6.6, 186, 'Deira', 29, 'city-hotel', 14000, 'Hotel'],
+  ['Bur Dubai Market Inn', 2, 7.2, 324, 'Bur Dubai', 42, 'hotel-lobby', 11000, 'Hotel'],
 ];
 const other: { destination: (typeof MOCK_DESTINATIONS)[number]; rows: Fixture[] }[] = [
   {
@@ -150,6 +152,28 @@ const other: { destination: (typeof MOCK_DESTINATIONS)[number]; rows: Fixture[] 
         'Boutique hotel',
       ],
       ['Camden Courtyard Hotel', 3, 8.1, 734, 'Camden', 98, 'hotel-lobby', undefined, 'Hotel'],
+      [
+        'Kings Cross Budget Rooms',
+        1,
+        6.7,
+        214,
+        "King's Cross",
+        62,
+        'deluxe-room',
+        undefined,
+        'Hotel',
+      ],
+      [
+        'Paddington Townhouse Hotel',
+        2,
+        7.4,
+        386,
+        'Paddington',
+        89,
+        'boutique-courtyard',
+        undefined,
+        'Hotel',
+      ],
     ],
   },
   {
@@ -169,6 +193,9 @@ const other: { destination: (typeof MOCK_DESTINATIONS)[number]; rows: Fixture[] 
       ],
       ['Konyaalti Sun Club', 4, 8.5, 1482, 'Konyaalti', 96, 'resort-pool', 120, 'Resort'],
       ['Mediterranean Pearl Palace', 5, 9.4, 1916, 'Lara Beach', 212, 'infinity-pool', 0, 'Resort'],
+      ['Muratpasa City Inn', 1, 6.5, 167, 'Muratpasa', 24, 'hotel-lobby', 4500, 'Hotel'],
+      ['Kaleici Harbour Rooms', 2, 7.3, 291, 'Kaleici', 36, 'boutique-courtyard', 500, 'Hotel'],
+      ['Konyaalti Coast Hotel', 3, 7.8, 542, 'Konyaalti', 58, 'city-hotel', 900, 'Hotel'],
     ],
   },
   {
@@ -188,6 +215,8 @@ const other: { destination: (typeof MOCK_DESTINATIONS)[number]; rows: Fixture[] 
       ],
       ['Nusa Dua Coral Resort', 5, 9.1, 2216, 'Nusa Dua', 178, 'beachfront-hotel', 0, 'Resort'],
       ['Canggu Sunset House', 3, 8.6, 418, 'Canggu', 64, 'resort-pool', 420, 'Hotel'],
+      ['Denpasar Market Inn', 1, 6.6, 196, 'Denpasar', 18, 'hotel-lobby', 9000, 'Hotel'],
+      ['Kuta Courtyard Hotel', 2, 7.4, 327, 'Kuta', 32, 'boutique-courtyard', 800, 'Hotel'],
     ],
   },
 ];
@@ -199,14 +228,17 @@ function createInventory(
   return rows.map(
     ([name, stars, score, reviews, area, nightlyUsd, image, beachMeters, propertyType], index) => {
       const isResort = propertyType === 'Resort';
-      const facilities = ['Free WiFi', 'Air conditioning', 'Restaurant'];
-      if (index % 7 !== 3 || isResort) facilities.push('Swimming pool');
-      if (stars >= 4) facilities.push('Fitness centre');
-      if (stars === 5 || index % 3 === 0) facilities.push('Spa');
-      if (beachMeters !== undefined && beachMeters <= 200) facilities.push('Beachfront');
-      if (isResort || index % 4 === 1) facilities.push('Family friendly', 'Kids club');
-      if (index % 3 !== 1) facilities.push('Free parking');
-      if (index % 5 === 0) facilities.push('Adults only');
+      const facilities = ['Free WiFi', 'Air conditioning'];
+      if (stars >= 3) {
+        facilities.push('Restaurant');
+        if (index % 7 !== 3 || isResort) facilities.push('Swimming pool');
+        if (stars >= 4) facilities.push('Fitness centre');
+        if (stars === 5 || index % 3 === 0) facilities.push('Spa');
+        if (beachMeters !== undefined && beachMeters <= 200) facilities.push('Beachfront');
+        if (isResort || index % 4 === 1) facilities.push('Family friendly', 'Kids club');
+        if (index % 3 !== 1) facilities.push('Free parking');
+        if (index % 5 === 0) facilities.push('Adults only');
+      }
       // A property never advertises mutually exclusive family/adults-only access.
       const offeredFacilities = facilities.includes('Adults only')
         ? facilities.filter((value) => value !== 'Family friendly' && value !== 'Kids club')

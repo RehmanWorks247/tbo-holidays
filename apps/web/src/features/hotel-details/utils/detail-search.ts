@@ -1,10 +1,10 @@
-import type { Hotel, HotelSearchRequest } from '@hotel/contracts';
+import type { Hotel, MockHotelSearchRequest } from '@hotel/contracts';
 
 /** Result-list filters and pagination must never hide the selected hotel's rooms. */
 export function hotelDetailsSearch(
-  request: HotelSearchRequest | null,
+  request: MockHotelSearchRequest | null,
   hotel: Hotel | undefined,
-): HotelSearchRequest | null {
+): MockHotelSearchRequest | null {
   if (!request || !hotel) return null;
   return {
     destination: request.destination,

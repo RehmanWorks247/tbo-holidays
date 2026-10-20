@@ -46,10 +46,12 @@ with `pnpm infra:up`, run `pnpm db:prepare:mock`, then `pnpm dev:mock` and open
 [the hotel preview](http://localhost:3000/hotels). The preview needs PostgreSQL;
 Redis is not used by its read-only API.
 This explicitly starts a separate read-only API composition, using the same hotel routes
-and public response contracts. The repeatable seed stores 36 fictional hotels across
+and public response contracts. The repeatable seed stores 45 fictional hotels across
 Dubai, London, Antalya and Bali in dedicated PostgreSQL tables, with rates for all
-six supported currencies. Filters, sorting and pagination run in the API; selections are
-shareable in the URL. Demo prices, reviews and photos are labelled, and booking is
+six supported currencies. Opening `/hotels` or submitting an empty search shows all
+45 hotels without requiring a destination, dates or guest details. Optional criteria
+and filters narrow the catalogue. Filters, sorting and pagination run in the API;
+selections are shareable in the URL. Demo prices, reviews and photos are labelled, and booking is
 disabled. Mock mode is rejected in production. See [hotel preview and search](docs/hotel-preview.md).
 
 ## Repository map
@@ -81,7 +83,7 @@ No separate UI package or generic configuration package exists yet: there is one
 
 The Best Holiday Packages homepage uses the supplied company logo, a charcoal theme with a `#00A7E1` blue accent, a responsive travel layout, local destination photography, and shared shadcn-style Radix primitives. The appearance menu supports light, dark, and system themes with a persistent browser preference. Semantic colors live centrally in `apps/web/src/styles/globals.css`; feature layouts use CSS Modules. See [theming and frontend design](docs/theming.md) for customization and [image sources](docs/image-sources.md) for logo and photography credits.
 
-Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. Search still requires a supplier city code; the backend remains authoritative for inventory, prices, and booking outcomes.
+Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. Live search still requires a supplier city code and complete stay criteria; the backend remains authoritative for inventory, prices, and booking outcomes.
 
 ## Configuration and integration boundaries
 

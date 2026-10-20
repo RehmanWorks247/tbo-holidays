@@ -23,15 +23,13 @@ const prefix = `test-${runId}-`;
 const options = { nodeEnv: 'test', mode: 'mock', databaseUrl: url, idPrefix: prefix };
 const records = buildMockSeedRecords(prefix);
 const database = new DatabaseService(new ConfigService<Environment, true>({ DATABASE_URL: url }));
-const supplier = new MockHotelSupplier(
-  new ConfigService<Environment, true>({
-    HOTEL_DATA_MODE: 'mock',
-    NODE_ENV: 'test',
-    MAX_STAY_NIGHTS: 30,
-  }),
-  database,
-);
-const service = new MockSearchService(supplier);
+const config = new ConfigService<Environment, true>({
+  HOTEL_DATA_MODE: 'mock',
+  NODE_ENV: 'test',
+  MAX_STAY_NIGHTS: 30,
+});
+const supplier = new MockHotelSupplier(config, database);
+const service = new MockSearchService(supplier, config);
 
 describe('PostgreSQL preview inventory', () => {
   beforeAll(async () => {
@@ -58,7 +56,7 @@ describe('PostgreSQL preview inventory', () => {
     const second = await seedMockHotelInventory(database, options);
     expect(first).toEqual(second);
     expect(await database.mockDestination.count({ where: { id: { startsWith: prefix } } })).toBe(4);
-    expect(await database.mockHotel.count({ where: { id: { startsWith: prefix } } })).toBe(36);
+    expect(await database.mockHotel.count({ where: { id: { startsWith: prefix } } })).toBe(45);
     expect(await database.mockRate.count({ where: { hotelId: { startsWith: prefix } } })).toBe(
       records.rates.length,
     );
@@ -117,6 +115,27 @@ describe('PostgreSQL preview inventory', () => {
     await expect(service.recheckHotelRate()).rejects.toMatchObject({
       code: 'MOCK_BOOKING_DISABLED',
     });
+  });
+
+  it('browses the persisted catalogue without location or stay fields and paginates globally', async () => {
+    const first = await service.searchHotels({ currency: 'USD', sort: 'price-asc' });
+    expect(first.metadata).toMatchObject({
+      destination: 'All destinations',
+      total: await database.mockHotel.count(),
+      pageSize: 50,
+    });
+    const results = [...first.hotels];
+    for (let page = 2; page <= first.metadata!.totalPages; page += 1) {
+      results.push(
+        ...(await service.searchHotels({ currency: 'USD', sort: 'price-asc', page })).hotels,
+      );
+    }
+    const ownHotels = results.filter(({ hotel }) => hotel.id.startsWith(prefix));
+    expect(ownHotels).toHaveLength(45);
+    expect(new Set(ownHotels.map(({ hotel }) => hotel.city)).size).toBe(4);
+    expect(new Set(results.map(({ hotel }) => hotel.id)).size).toBe(results.length);
+    const totals = results.map(({ rates }) => rates[0]!.price.totalAmount);
+    expect(totals).toEqual([...totals].sort((a, b) => a - b));
   });
 
   it('enforces database foreign keys, currency amounts and one offer per hotel/currency/meal plan', async () => {

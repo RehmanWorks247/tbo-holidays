@@ -16,7 +16,7 @@ const minimumPrice = (result: HotelSearchResult) => result.rates[0]?.price.total
 /** All budgets refer to the complete stay and room combination, in minor units. */
 export function browseHotelResults(
   inventory: HotelSearchResult[],
-  input: HotelSearchRequest,
+  input: Pick<HotelSearchRequest, 'filters' | 'sort' | 'page' | 'pageSize'>,
   source: 'mock' | 'live',
   destination: string,
 ): HotelSearchResponse {

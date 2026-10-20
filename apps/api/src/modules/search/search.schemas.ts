@@ -1,8 +1,13 @@
-import { hotelSchema, hotelSearchRequestSchema, hotelSearchResultSchema } from '@hotel/contracts';
+import {
+  hotelSchema,
+  hotelSearchRequestSchema,
+  hotelSearchResultSchema,
+  mockHotelSearchRequestSchema,
+} from '@hotel/contracts';
 import { z } from 'zod';
 
 /** Query arrays travel as JSON so multi-room occupancy remains unambiguous. */
-export const hotelSearchQuerySchema = z.preprocess((value) => {
+function parseSearchQuery(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const query = { ...value } as Record<string, unknown>;
   for (const field of ['rooms', 'filters']) {
@@ -19,7 +24,13 @@ export const hotelSearchQuerySchema = z.preprocess((value) => {
       query[field] = Number(query[field]);
   }
   return query;
-}, hotelSearchRequestSchema);
+}
+
+export const hotelSearchQuerySchema = z.preprocess(parseSearchQuery, hotelSearchRequestSchema);
+export const mockHotelSearchQuerySchema = z.preprocess(
+  parseSearchQuery,
+  mockHotelSearchRequestSchema,
+);
 
 export const cachedRateSchema = z.object({
   supplier: z.string(),

@@ -1,6 +1,6 @@
 'use client';
 
-import type { HotelResultsFilters, HotelSearchRequest, HotelSort } from '@hotel/contracts';
+import type { HotelResultsFilters, HotelSort, MockHotelSearchRequest } from '@hotel/contracts';
 import {
   ArrowLeft,
   ArrowRight,
@@ -31,7 +31,6 @@ import { useHotelSearch } from '@/features/hotel-search/queries/use-hotel-search
 import { useSavedHotels } from '@/features/hotel-search/queries/use-saved-hotels';
 import { activeFilterChips, removeFilterChip } from '@/features/hotel-search/utils/filter-chips';
 import {
-  defaultMockSearch,
   parseHotelSearch,
   searchStayOnly,
   serializeHotelSearch,
@@ -53,20 +52,16 @@ export function HotelResults() {
   const { currency } = useSitePreferences();
   const params = useSearchParams();
   const destinations = useHotelDestinations();
-  const [defaultSearch] = useState(() => defaultMockSearch(currency));
-  const fallback = useMemo(
-    () =>
-      params.size === 0 && destinations.data?.source === 'mock'
-        ? { ...defaultSearch, currency }
-        : null,
-    [params.size, destinations.data?.source, defaultSearch, currency],
+  const mode = destinations.data?.source ?? 'live';
+  const request = useMemo(
+    () => (mode === 'mock' ? parseHotelSearch(params, 'mock', currency) : parseHotelSearch(params)),
+    [params, mode, currency],
   );
-  const request = useMemo(() => parseHotelSearch(params) ?? fallback, [params, fallback]);
   const requestRef = useRef(request);
   useEffect(() => {
     requestRef.current = request;
   }, [request]);
-  const debounced = useDebouncedSearch(request);
+  const debounced = useDebouncedSearch(request, mode);
   const search = useHotelSearch(debounced.request);
   const saved = useSavedHotels();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -84,6 +79,8 @@ export function HotelResults() {
   const total = metadata?.total ?? data?.hotels.length ?? 0;
   const page = metadata?.page ?? request?.page ?? 1;
   const totalPages = metadata?.totalPages ?? 1;
+  const sampleStay =
+    mode === 'mock' && (!request?.checkIn || !request?.checkOut || !request?.rooms);
   const destination =
     metadata?.destination ??
     destinations.data?.destinations.find((item) => item.id === request?.destination)?.name ??
@@ -92,12 +89,7 @@ export function HotelResults() {
     ? JSON.stringify({ ...searchStayOnly(request), currency: undefined })
     : 'new';
 
-  useEffect(() => {
-    if (fallback)
-      window.history.replaceState(null, '', `/hotels?${serializeHotelSearch(fallback)}`);
-  }, [fallback]);
-
-  function update(next: HotelSearchRequest, replace = false) {
+  function update(next: MockHotelSearchRequest, replace = false) {
     requestRef.current = next;
     window.history[replace ? 'replaceState' : 'pushState'](
       null,
@@ -162,7 +154,11 @@ export function HotelResults() {
                 {data ? (
                   <>
                     <strong>{new Intl.NumberFormat(locale).format(total)} hotels</strong>{' '}
-                    {updating ? '· Updating…' : 'found for your stay'}
+                    {updating
+                      ? '· Updating…'
+                      : sampleStay
+                        ? 'available to explore'
+                        : 'found for your stay'}
                   </>
                 ) : currentError ? (
                   'We couldn’t load your hotels. Please try again.'
@@ -188,6 +184,8 @@ export function HotelResults() {
                       onChange={changeFilters}
                       facets={metadata?.facets}
                       currency={request.currency}
+                      sampleStay={sampleStay}
+                      allDestinations={!request.destination}
                       onReset={() => changeFilters({})}
                       idPrefix="mobile"
                     />
@@ -218,9 +216,11 @@ export function HotelResults() {
           </div>
           <div className={styles.resultsContext} lang="en">
             <p>
-              {destination
-                ? `Find your next stay in ${destination}`
-                : 'Find your next favourite stay'}
+              {!request.destination && mode === 'mock'
+                ? 'Explore sample hotels across all destinations'
+                : destination
+                  ? `Find your next stay in ${destination}`
+                  : 'Find your next favourite stay'}
             </p>
             {(metadata?.source ?? destinations.data?.source) === 'mock' ? (
               <p className={styles.demoNotice} role="note">
@@ -236,6 +236,8 @@ export function HotelResults() {
                 onChange={changeFilters}
                 facets={metadata?.facets}
                 currency={request.currency}
+                sampleStay={sampleStay}
+                allDestinations={!request.destination}
                 onReset={() => changeFilters({})}
                 idPrefix="desktop"
               />
@@ -294,6 +296,7 @@ export function HotelResults() {
                       key={result.hotel.id}
                       result={result}
                       search={request}
+                      previewStay={metadata?.previewStay}
                       priority={index === 0}
                       saved={saved.ids.includes(result.hotel.id)}
                       onToggleSave={() => saved.toggle(result.hotel.id)}
@@ -349,9 +352,10 @@ export function HotelResults() {
               ) : null}
               {data?.hotels.length ? (
                 <p className={styles.priceNote} lang="en">
-                  Prices shown are the total for your selected stay and all rooms, including
-                  applicable taxes. Charges payable at the property are listed with the room
-                  details.
+                  {sampleStay
+                    ? 'Sample prices use the example dates and guests shown on each hotel card, including applicable taxes.'
+                    : 'Prices shown are the total for your selected stay and all rooms, including applicable taxes.'}{' '}
+                  Charges payable at the property are listed with the room details.
                 </p>
               ) : null}
             </div>

@@ -132,6 +132,11 @@ without Redis or mutation modules. Dedicated `MockDestination`, `MockHotel` and
 quote, payment or user records. Runtime reads use PostgreSQL; the TypeScript
 fixtures are seed input only. Destination and hotel/currency indexes bound the
 catalogue queries, then the shared search domain filters computed stay prices.
+Mock search alone accepts omitted stay criteria. With no destination it combines
+all persisted destinations before filtering, sorting and pagination; the backend
+returns the effective sample pricing stay in `metadata.previewStay`. An empty
+preview search shows the complete 45-hotel seed with a default page size of 50.
+Live search keeps its required destination and stay validation.
 Production configuration rejects mock mode. See [hotel preview](hotel-preview.md).
 The client uses configured HTTPS, Basic authentication, deadlines, redacted
 context logging and bounded retries for explicitly allowlisted read operations.

@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { HotelSearchRequest } from '@hotel/contracts';
+import type { MockHotelSearchRequest } from '@hotel/contracts';
 import { ChevronDown, MapPin, Minus, Moon, Plus, Search, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
@@ -13,7 +13,7 @@ import { publicEnvironment } from '@/config/env';
 import { DateRangePicker } from '@/features/hotel-search/components/date-range-picker';
 import styles from '@/features/hotel-search/components/hotel-search-form.module.css';
 import { useHotelDestinations } from '@/features/hotel-search/queries/use-hotel-destinations';
-import { hotelSearchFormSchema } from '@/features/hotel-search/schemas/hotel-search.schema';
+import { createHotelSearchFormSchema } from '@/features/hotel-search/schemas/hotel-search.schema';
 import { searchStayOnly, serializeHotelSearch } from '@/features/hotel-search/utils/search-params';
 import { useSitePreferences } from '@/providers/site-preferences-provider';
 import { useSiteMessages } from '@/providers/use-site-messages';
@@ -22,7 +22,7 @@ export function HotelSearchForm({
   initialSearch,
   variant = 'default',
 }: {
-  initialSearch?: HotelSearchRequest | null;
+  initialSearch?: MockHotelSearchRequest | null;
   variant?: 'default' | 'results';
 }) {
   const router = useRouter();
@@ -33,6 +33,8 @@ export function HotelSearchForm({
   const formId = useId();
   const [guestsOpen, setGuestsOpen] = useState(false);
   const destinations = useHotelDestinations();
+  const isMock = destinations.data?.source === 'mock';
+  const schema = createHotelSearchFormSchema(isMock ? 'mock' : 'live');
   const {
     register,
     control,
@@ -40,15 +42,15 @@ export function HotelSearchForm({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<z.input<typeof hotelSearchFormSchema>, unknown, HotelSearchRequest>({
-    resolver: zodResolver(hotelSearchFormSchema),
-    defaultValues: initialSearch ?? {
-      destination: '',
-      checkIn: '',
-      checkOut: '',
-      nationality: '',
-      currency,
-      rooms: [{ adults: 2, childrenAges: [] }],
+  } = useForm<z.input<typeof schema>, unknown, MockHotelSearchRequest>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      destination: initialSearch?.destination ?? '',
+      checkIn: initialSearch?.checkIn ?? '',
+      checkOut: initialSearch?.checkOut ?? '',
+      nationality: initialSearch?.nationality ?? '',
+      currency: initialSearch?.currency ?? currency,
+      rooms: initialSearch?.rooms ?? [{ adults: 2, childrenAges: [] }],
     },
   });
   useEffect(() => {
@@ -58,9 +60,9 @@ export function HotelSearchForm({
     if (!initialCurrency) setValue('currency', currency, { shouldValidate: false });
   }, [currency, initialCurrency, setValue]);
   const { fields, append, remove } = useFieldArray({ control, name: 'rooms' });
-  const checkIn = watch('checkIn');
-  const checkOut = watch('checkOut');
-  const rooms = watch('rooms');
+  const checkIn = watch('checkIn') ?? '';
+  const checkOut = watch('checkOut') ?? '';
+  const rooms = watch('rooms') ?? [];
   const searchCurrency = watch('currency');
   const adults = rooms.reduce((total, room) => total + room.adults, 0);
   const children = rooms.reduce((total, room) => total + room.childrenAges.length, 0);
@@ -77,7 +79,29 @@ export function HotelSearchForm({
       noValidate
       aria-label={copy.formLabel}
       onSubmit={handleSubmit(
-        (request) => router.push(`/hotels?${serializeHotelSearch(searchStayOnly(request))}`),
+        (request) => {
+          const stay = searchStayOnly(request);
+          const defaultRooms =
+            stay.rooms?.length === 1 &&
+            stay.rooms[0]?.adults === 2 &&
+            stay.rooms[0].childrenAges.length === 0;
+          if (
+            isMock &&
+            !stay.destination &&
+            !stay.checkIn &&
+            !stay.checkOut &&
+            !stay.nationality &&
+            defaultRooms
+          ) {
+            router.push(
+              stay.currency === currency
+                ? '/hotels'
+                : `/hotels?${serializeHotelSearch({ currency: stay.currency })}`,
+            );
+          } else {
+            router.push(`/hotels?${serializeHotelSearch(stay)}`);
+          }
+        },
         (invalidFields) => {
           if (invalidFields.rooms || invalidFields.nationality || invalidFields.currency) {
             setGuestsOpen(true);
@@ -91,15 +115,15 @@ export function HotelSearchForm({
           <MapPin size={22} strokeWidth={1.8} aria-hidden="true" />
           <div className={styles.destinationText}>
             <label htmlFor={`${formId}-destination`}>{copy.destination}</label>
-            {destinations.data?.source === 'mock' ? (
+            {isMock ? (
               <select
                 id={`${formId}-destination`}
                 {...register('destination')}
                 aria-invalid={Boolean(errors.destination)}
                 aria-describedby={errors.destination ? `${formId}-destination-error` : undefined}
               >
-                <option value="">Choose a destination</option>
-                {destinations.data.destinations.map((destination) => (
+                <option value="">All destinations</option>
+                {destinations.data?.destinations.map((destination) => (
                   <option key={destination.id} value={destination.id}>
                     {destination.name}
                   </option>
@@ -116,7 +140,7 @@ export function HotelSearchForm({
               />
             )}
           </div>
-          {destinations.data?.source !== 'mock' ? (
+          {!isMock ? (
             <div id={`${formId}-destination-help`} className={styles.destinationHelp}>
               <strong>{copy.destinationHelpTitle}</strong>
               <p>{copy.destinationHelp}</p>
@@ -304,7 +328,7 @@ export function HotelSearchForm({
                         name={`rooms.${index}.childrenAges`}
                         render={({ field: ageField }) => (
                           <div className={styles.childAges}>
-                            {ageField.value.map((age, childIndex) => (
+                            {(ageField.value ?? []).map((age, childIndex) => (
                               <label key={`${field.id}-${childIndex}`}>
                                 {copy.childAge(childIndex + 1)}
                                 <select
@@ -319,7 +343,7 @@ export function HotelSearchForm({
                                   }
                                   onChange={(event) =>
                                     ageField.onChange(
-                                      ageField.value.map((existingAge, ageIndex) =>
+                                      (ageField.value ?? []).map((existingAge, ageIndex) =>
                                         ageIndex === childIndex
                                           ? Number(event.target.value)
                                           : existingAge,

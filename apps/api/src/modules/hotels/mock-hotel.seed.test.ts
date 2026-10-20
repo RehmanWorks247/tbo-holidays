@@ -47,7 +47,7 @@ describe('mock database seed protection', () => {
   it('produces normalized deterministic IDs and six currency offers per meal plan', () => {
     const records = buildMockSeedRecords();
     expect(records.destinations).toHaveLength(4);
-    expect(records.hotels).toHaveLength(36);
+    expect(records.hotels).toHaveLength(45);
     expect(new Set(records.rates.map(({ id }) => id)).size).toBe(records.rates.length);
     expect(
       records.rates.every((rate) => records.hotels.some(({ id }) => id === rate.hotelId)),

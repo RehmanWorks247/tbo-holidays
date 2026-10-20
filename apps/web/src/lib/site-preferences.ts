@@ -37,14 +37,18 @@ export function parseStoredSitePreferences(value: string | null): {
   };
 }
 
-export function replaceCurrencyInUrl(url: string, currency: Currency): string {
+export function replaceCurrencyInUrl(
+  url: string,
+  currency: Currency,
+  fallbackCurrency: Currency = 'USD',
+): string {
   const hashIndex = url.indexOf('#');
   const hash = hashIndex === -1 ? '' : url.slice(hashIndex);
   const withoutHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
   const queryIndex = withoutHash.indexOf('?');
   const path = queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex);
   const params = new URLSearchParams(queryIndex === -1 ? '' : withoutHash.slice(queryIndex + 1));
-  if ((params.get('currency') ?? 'USD') !== currency) {
+  if ((params.get('currency') ?? fallbackCurrency) !== currency) {
     params.delete('page');
     const search = parseSearchFilters(params.get('filters'));
     if (search) {

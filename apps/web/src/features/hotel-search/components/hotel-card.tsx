@@ -1,6 +1,11 @@
 'use client';
 
-import type { HotelSearchRequest, HotelSearchResult } from '@hotel/contracts';
+import {
+  type HotelPreviewStay,
+  hotelSearchRequestSchema,
+  type HotelSearchResult,
+  type MockHotelSearchRequest,
+} from '@hotel/contracts';
 import {
   ArrowRight,
   Building2,
@@ -26,12 +31,14 @@ import styles from './hotel-card.module.css';
 export function HotelCard({
   result,
   search,
+  previewStay,
   priority = false,
   saved = false,
   onToggleSave,
 }: {
   result: HotelSearchResult;
-  search: HotelSearchRequest;
+  search: MockHotelSearchRequest;
+  previewStay?: HotelPreviewStay;
   priority?: boolean;
   saved?: boolean;
   onToggleSave?: () => void;
@@ -52,10 +59,15 @@ export function HotelCard({
     undefined,
   );
   const hotelUrl = `/hotels/${encodeURIComponent(hotel.id)}?${serializeHotelSearch(search)}`;
-  const nights = Math.round(
-    (Date.parse(search.checkOut) - Date.parse(search.checkIn)) / 86_400_000,
-  );
-  const guests = search.rooms.reduce(
+  const fullSearch = hotelSearchRequestSchema.safeParse(search);
+  const isMock = hotel.source === 'mock';
+  const stay = (isMock ? previewStay : undefined) ?? (fullSearch.success ? fullSearch.data : null);
+  const sampleDates = isMock && (!search.checkIn || !search.checkOut);
+  const sampleGuests = isMock && !search.rooms;
+  const nights = stay
+    ? Math.round((Date.parse(stay.checkOut) - Date.parse(stay.checkIn)) / 86_400_000)
+    : undefined;
+  const guests = stay?.rooms.reduce(
     (total, room) => total + room.adults + room.childrenAges.length,
     0,
   );
@@ -199,13 +211,16 @@ export function HotelCard({
         ) : null}
         <div className={styles.offer}>
           <div className={styles.stayDetails}>
-            <p className={styles.stayDates} lang="en">
-              <CalendarDays size={16} aria-hidden="true" />
-              <span>
-                {formatDate(search.checkIn, locale)} ·{' '}
-                {new Intl.NumberFormat(locale).format(nights)} {nights === 1 ? 'night' : 'nights'}
-              </span>
-            </p>
+            {stay && nights !== undefined ? (
+              <p className={styles.stayDates} lang="en">
+                <CalendarDays size={16} aria-hidden="true" />
+                <span>
+                  {sampleDates ? 'Sample stay: ' : ''}
+                  {formatDate(stay.checkIn, locale)} ·{' '}
+                  {new Intl.NumberFormat(locale).format(nights)} {nights === 1 ? 'night' : 'nights'}
+                </span>
+              </p>
+            ) : null}
             {lowestRate?.mealType ? (
               <p className={styles.boardBasis} lang="und" dir="auto" translate="no">
                 <Utensils size={16} aria-hidden="true" />
@@ -227,12 +242,17 @@ export function HotelCard({
           <div className={styles.pricePanel}>
             {lowestRate ? (
               <>
-                <span className={styles.priceLabel}>{messages.fullStayFrom}</span>
+                <span className={styles.priceLabel} lang={isMock ? 'en' : undefined}>
+                  {isMock ? 'Sample stay from' : messages.fullStayFrom}
+                </span>
                 <p className={styles.price}>{formatMoney(lowestRate.price, locale)}</p>
-                <p className={styles.priceNote} lang="en">
-                  {new Intl.NumberFormat(locale).format(guests)} {guests === 1 ? 'guest' : 'guests'}{' '}
-                  · taxes included
-                </p>
+                {guests !== undefined ? (
+                  <p className={styles.priceNote} lang="en">
+                    {sampleGuests ? 'Sample: ' : ''}
+                    {new Intl.NumberFormat(locale).format(guests)}{' '}
+                    {guests === 1 ? 'guest' : 'guests'} · taxes included
+                  </p>
+                ) : null}
                 {propertySupplements.length ? (
                   <p className={styles.supplementNote} lang="en">
                     Additional property charges apply

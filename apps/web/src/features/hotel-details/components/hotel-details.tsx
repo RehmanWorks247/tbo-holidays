@@ -1,6 +1,6 @@
 'use client';
 
-import { currencySchema, type HotelRate } from '@hotel/contracts';
+import { currencySchema, type HotelRate, hotelSearchRequestSchema } from '@hotel/contracts';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -28,13 +28,11 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useHotelSearch } from '@/features/hotel-search/queries/use-hotel-search';
-import {
-  parseHotelSearch,
-  serializeHotelSearch,
-} from '@/features/hotel-search/utils/search-params';
+import { parseHotelSearch } from '@/features/hotel-search/utils/search-params';
 import { formatDate } from '@/lib/format-date';
 import { formatMoney } from '@/lib/format-money';
 import type { SiteLocale } from '@/lib/site-preferences';
+import { useSitePreferences } from '@/providers/site-preferences-provider';
 import { usePageMessages } from '@/providers/use-page-messages';
 import { hotelsApi } from '@/services/api/hotels.api';
 
@@ -120,8 +118,8 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
     locale,
     t,
   } = usePageMessages();
+  const { currency } = useSitePreferences();
   const params = useSearchParams();
-  const request = parseHotelSearch(params);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const details = useQuery({
@@ -129,6 +127,10 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
     queryFn: ({ signal }) => hotelsApi.details(hotelId, signal),
     staleTime: 5 * 60_000,
   });
+  const request =
+    details.data?.source === 'mock'
+      ? parseHotelSearch(params, 'mock', currency)
+      : parseHotelSearch(params);
   const search = useHotelSearch(hotelDetailsSearch(request, details.data));
   const result = search.data?.hotels.find(({ hotel }) => hotel.id === hotelId);
   if (details.isPending)
@@ -140,6 +142,11 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
   if (details.error) return <RequestError error={details.error} />;
   const hotel = details.data;
   const isMock = hotel.source === 'mock' || search.data?.metadata?.source === 'mock';
+  const fullSearch = hotelSearchRequestSchema.safeParse(request);
+  const stay =
+    (isMock ? search.data?.metadata?.previewStay : undefined) ??
+    (fullSearch.success ? fullSearch.data : null);
+  const hasSampleStay = isMock && (!request?.checkIn || !request.checkOut || !request.rooms);
   const photos = hotel.images;
   const selectedPhoto = photos[photoIndex] ?? photos[0];
   const lowestRate = result?.rates.reduce<HotelRate | undefined>(
@@ -153,7 +160,8 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
   };
   const changePhoto = (direction: number) =>
     setPhotoIndex((current) => (current + direction + photos.length) % photos.length);
-  const backHref = request ? `/hotels?${serializeHotelSearch(request)}` : '/hotels';
+  const backQuery = params.toString();
+  const backHref = backQuery ? `/hotels?${backQuery}` : '/hotels';
   return (
     <div className={styles.page}>
       <Link href={backHref} className={styles.back} lang="en">
@@ -289,28 +297,34 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
           ) : null}
         </div>
         <aside className={styles.stayCard}>
-          <h2 lang="en">Your stay</h2>
-          {request ? (
+          <h2 lang="en">{hasSampleStay ? 'Sample stay' : 'Your stay'}</h2>
+          {stay ? (
             <>
               <p>
                 <CalendarDays size={19} aria-hidden="true" />
-                {formatDate(request.checkIn, locale)} – {formatDate(request.checkOut, locale)}
+                {formatDate(stay.checkIn, locale)} – {formatDate(stay.checkOut, locale)}
               </p>
               <p lang="en">
                 <Users size={19} aria-hidden="true" />
-                {request.rooms.reduce(
+                {stay.rooms.reduce(
                   (total, room) => total + room.adults + room.childrenAges.length,
                   0,
                 )}{' '}
-                guests · {request.rooms.length} {request.rooms.length === 1 ? 'room' : 'rooms'}
+                guests · {stay.rooms.length} {stay.rooms.length === 1 ? 'room' : 'rooms'}
               </p>
             </>
           ) : (
-            <p>{messages.chooseDatesAndGuests}</p>
+            <p lang={isMock ? 'en' : undefined}>
+              {isMock
+                ? 'Sample stay details will appear with the rates.'
+                : messages.chooseDatesAndGuests}
+            </p>
           )}
           {lowestRate ? (
             <div className={styles.stayPrice}>
-              <span>{messages.fullStayFrom}</span>
+              <span lang={isMock ? 'en' : undefined}>
+                {isMock ? 'Sample stay from' : messages.fullStayFrom}
+              </span>
               <strong>{formatMoney(lowestRate.price, locale)}</strong>
               <span lang="en">
                 {isMock ? 'Sample total for all guests' : 'Total for all guests'}
@@ -330,7 +344,9 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
       </div>
       <section id="rooms" className={styles.rooms}>
         <div className={styles.roomHeading}>
-          <h2>{messages.roomsForStay}</h2>
+          <h2 lang={hasSampleStay ? 'en' : undefined}>
+            {hasSampleStay ? 'Sample rooms & rates' : messages.roomsForStay}
+          </h2>
           {request ? (
             <Link href={backHref} lang="en">
               Change search

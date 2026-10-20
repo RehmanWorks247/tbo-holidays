@@ -88,4 +88,26 @@ describe('site preferences', () => {
     expect(next.searchParams.get('destination')).toBe('dubai');
     expect(filters).toHaveProperty('maxPrice', 80000);
   });
+
+  it('uses the effective saved currency when an all-hotels URL omits its currency', () => {
+    const original = new URL('https://example.com/hotels');
+    original.search = new URLSearchParams({
+      filters: JSON.stringify({ maxPrice: 10000, starRatings: [3] }),
+      page: '2',
+      sort: 'price-asc',
+    }).toString();
+    const changed = new URL(replaceCurrencyInUrl(original.toString(), 'USD', 'GBP'));
+    expect(changed.searchParams.get('currency')).toBe('USD');
+    expect(changed.searchParams.has('page')).toBe(false);
+    expect(JSON.parse(changed.searchParams.get('filters') ?? '{}')).toEqual({ starRatings: [3] });
+    expect(changed.searchParams.get('sort')).toBe('price-asc');
+    expect(changed.searchParams.has('destination')).toBe(false);
+
+    const unchanged = new URL(replaceCurrencyInUrl(original.toString(), 'GBP', 'GBP'));
+    expect(unchanged.searchParams.get('page')).toBe('2');
+    expect(JSON.parse(unchanged.searchParams.get('filters') ?? '{}')).toEqual({
+      maxPrice: 10000,
+      starRatings: [3],
+    });
+  });
 });

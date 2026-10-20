@@ -65,6 +65,65 @@ export const hotelSearchRequestSchema = z
   });
 export type HotelSearchRequest = z.infer<typeof hotelSearchRequestSchema>;
 
+/** Optional criteria are accepted only by the explicitly selected mock catalogue. */
+export const mockHotelSearchRequestSchema = z
+  .object({
+    ...hotelSearchRequestSchema.shape,
+    destination: z
+      .string()
+      .trim()
+      .max(100)
+      .transform((value) => value || undefined)
+      .optional(),
+    checkIn: z
+      .string()
+      .trim()
+      .pipe(z.union([dateOnlySchema, z.literal('')]))
+      .transform((value) => value || undefined)
+      .optional(),
+    checkOut: z
+      .string()
+      .trim()
+      .pipe(z.union([dateOnlySchema, z.literal('')]))
+      .transform((value) => value || undefined)
+      .optional(),
+    nationality: z
+      .string()
+      .trim()
+      .pipe(z.union([hotelSearchRequestSchema.shape.nationality, z.literal('')]))
+      .transform((value) => value || undefined)
+      .optional(),
+    rooms: hotelSearchRequestSchema.shape.rooms.optional(),
+    currency: z
+      .string()
+      .trim()
+      .pipe(z.union([currencySchema, z.literal('')]))
+      .transform((value) => value || 'USD')
+      .default('USD'),
+  })
+  .strict()
+  .refine((value) => !value.checkIn || !value.checkOut || value.checkOut > value.checkIn, {
+    message: 'Check-out must be after check-in.',
+    path: ['checkOut'],
+  });
+export type MockHotelSearchRequest = z.infer<typeof mockHotelSearchRequestSchema>;
+
+/** Backend-selected sample stay used to price a mock search with omitted criteria. */
+export const hotelPreviewStaySchema = z
+  .object({
+    checkIn: dateOnlySchema,
+    checkOut: dateOnlySchema,
+    nationality: hotelSearchRequestSchema.shape.nationality,
+    rooms: hotelSearchRequestSchema.shape.rooms,
+    currency: currencySchema,
+  })
+  .strict()
+  .refine((value) => value.checkOut > value.checkIn, {
+    message: 'Check-out must be after check-in.',
+    path: ['checkOut'],
+  });
+export type HotelPreviewStay = z.infer<typeof hotelPreviewStaySchema>;
+
 /** UTC date-only comparison is consistent across browsers and the API. */
 export function validateStay(
   checkIn: string,
@@ -175,6 +234,7 @@ export const hotelSearchMetadataSchema = z.object({
   pageSize: z.number().int().positive(),
   totalPages: z.number().int().nonnegative(),
   destination: z.string(),
+  previewStay: hotelPreviewStaySchema.optional(),
   facets: z.object({
     minPrice: amountSchema,
     maxPrice: amountSchema,

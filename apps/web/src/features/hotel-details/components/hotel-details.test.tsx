@@ -1,4 +1,4 @@
-import type { Hotel, HotelRate } from '@hotel/contracts';
+import type { Hotel, HotelPreviewStay, HotelRate, MockHotelSearchRequest } from '@hotel/contracts';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,27 +6,37 @@ import { SitePreferencesProvider } from '@/providers/site-preferences-provider';
 
 import { HotelDetails } from './hotel-details';
 
-const fixture = vi.hoisted(() => ({ source: 'mock' as 'mock' | 'live' }));
+const fixture = vi.hoisted(() => ({
+  source: 'mock' as 'mock' | 'live',
+  query: '',
+  previewStay: undefined as HotelPreviewStay | undefined,
+  requests: [] as (MockHotelSearchRequest | null)[],
+  detailsPending: false,
+}));
 vi.mock('next/navigation', () => ({
-  useSearchParams: () =>
-    new URLSearchParams({
-      destination: 'dubai',
-      checkIn: '2030-06-10',
-      checkOut: '2030-06-17',
-      nationality: 'GB',
-      currency: 'GBP',
-      rooms: JSON.stringify([{ adults: 2, childrenAges: [] }]),
-    }),
+  useSearchParams: () => new URLSearchParams(fixture.query),
 }));
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: { ...hotel, source: fixture.source }, isPending: false, error: null }),
-}));
-vi.mock('@/features/hotel-search/queries/use-hotel-search', () => ({
-  useHotelSearch: () => ({
-    data: { hotels: [{ hotel, rates: [rate] }] },
-    isPending: false,
+  useQuery: () => ({
+    data: fixture.detailsPending ? undefined : { ...hotel, source: fixture.source },
+    isPending: fixture.detailsPending,
     error: null,
   }),
+}));
+vi.mock('@/features/hotel-search/queries/use-hotel-search', () => ({
+  useHotelSearch: (request: MockHotelSearchRequest | null) => {
+    fixture.requests.push(request);
+    return {
+      data: request
+        ? {
+            hotels: [{ hotel, rates: [rate] }],
+            metadata: { source: fixture.source, previewStay: fixture.previewStay },
+          }
+        : undefined,
+      isPending: !request,
+      error: null,
+    };
+  },
 }));
 
 const hotel: Hotel = {
@@ -78,6 +88,17 @@ const render = () =>
 describe('hotel detail sample and live boundaries', () => {
   beforeEach(() => {
     fixture.source = 'mock';
+    fixture.query = new URLSearchParams({
+      destination: 'dubai',
+      checkIn: '2030-06-10',
+      checkOut: '2030-06-17',
+      nationality: 'GB',
+      currency: 'GBP',
+      rooms: JSON.stringify([{ adults: 2, childrenAges: [] }]),
+    }).toString();
+    fixture.previewStay = undefined;
+    fixture.requests = [];
+    fixture.detailsPending = false;
   });
   it('shows sample inventory with disabled booking and preserves displayed backend charges', () => {
     const html = render();
@@ -97,5 +118,66 @@ describe('hotel detail sample and live boundaries', () => {
     const html = render();
     expect(html).toContain('/checkout?rateId=opaque-rate-id');
     expect(html).not.toContain('Sample rate — booking unavailable');
+  });
+
+  it('uses the backend sample stay and preserves browse filters in its Back link', () => {
+    fixture.query = new URLSearchParams({
+      currency: 'GBP',
+      filters: JSON.stringify({ starRatings: [5], refundable: true }),
+      sort: 'rating',
+      page: '3',
+    }).toString();
+    fixture.previewStay = {
+      checkIn: '2030-07-01',
+      checkOut: '2030-07-08',
+      nationality: 'GB',
+      rooms: [{ adults: 3, childrenAges: [8] }],
+      currency: 'GBP',
+    };
+    const html = render();
+    const request = fixture.requests.at(-1);
+    expect(request?.filters).toEqual({ name: hotel.name });
+    expect(request?.page).toBe(1);
+    expect(request?.pageSize).toBe(50);
+    expect(request?.destination).toBeUndefined();
+    expect(request?.checkIn).toBeUndefined();
+    expect(request?.rooms).toBeUndefined();
+    expect(html).toContain('Sample stay</h2>');
+    expect(html).toContain('1 Jul 2030');
+    expect(html).toContain('8 Jul 2030');
+    expect(html).toContain('4 guests');
+    expect(html).toContain('Sample rooms &amp; rates');
+    expect(html).toContain(`href="/hotels?${fixture.query.replaceAll('&', '&amp;')}"`);
+    expect(html).not.toContain('checkIn=');
+    expect(html).not.toContain('/checkout?');
+  });
+
+  it('leaves a direct mock hotel link empty and requests sample rates after confirmation', () => {
+    fixture.query = '';
+    const html = render();
+    expect(fixture.requests.at(-1)).toMatchObject({
+      currency: 'USD',
+      filters: { name: hotel.name },
+    });
+    expect(html).toContain('href="/hotels"');
+    expect(html).not.toContain('Invalid Date');
+    expect(html).not.toContain('NaN');
+    expect(html).toContain('Sample rate — booking unavailable');
+  });
+
+  it('does not search partial criteria before mock inventory is confirmed', () => {
+    fixture.query = 'currency=GBP&checkIn=2030-07-01';
+    fixture.detailsPending = true;
+    render();
+    expect(fixture.requests.at(-1)).toBeNull();
+  });
+
+  it('keeps incomplete live searches unavailable', () => {
+    fixture.source = 'live';
+    fixture.query = 'currency=GBP';
+    const html = render();
+    expect(fixture.requests.at(-1)).toBeNull();
+    expect(html).not.toContain('/checkout?');
+    expect(html).not.toContain('Sample stay');
   });
 });

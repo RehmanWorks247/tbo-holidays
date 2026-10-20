@@ -2,6 +2,7 @@ import type {
   HotelResultsFilters,
   HotelSearchRequest,
   HotelSearchResponse,
+  MockHotelSearchRequest,
 } from '@hotel/contracts';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,7 +18,9 @@ import { HotelResults } from './hotel-results';
 
 const state = vi.hoisted(() => ({
   params: new URLSearchParams(),
-  debounced: { request: null as HotelSearchRequest | null, settling: false },
+  debounced: { request: null as MockHotelSearchRequest | null, settling: false },
+  source: 'mock' as 'mock' | 'live' | undefined,
+  initialSearch: null as MockHotelSearchRequest | null,
   search: {
     data: undefined as HotelSearchResponse | undefined,
     error: null as Error | null,
@@ -40,14 +43,16 @@ vi.mock('@/features/hotel-search/queries/use-hotel-search', () => ({
 }));
 vi.mock('@/features/hotel-search/queries/use-hotel-destinations', () => ({
   useHotelDestinations: () => ({
-    data: {
-      source: 'mock',
-      destinations: [
-        { id: 'dubai', name: 'Dubai', countryCode: 'AE' },
-        { id: 'london', name: 'London', countryCode: 'GB' },
-      ],
-    },
-    isPending: false,
+    data: state.source
+      ? {
+          source: state.source,
+          destinations: [
+            { id: 'dubai', name: 'Dubai', countryCode: 'AE' },
+            { id: 'london', name: 'London', countryCode: 'GB' },
+          ],
+        }
+      : undefined,
+    isPending: !state.source,
     error: null,
   }),
 }));
@@ -55,7 +60,10 @@ vi.mock('@/features/hotel-search/queries/use-saved-hotels', () => ({
   useSavedHotels: () => ({ ids: [], error: '', toggle: vi.fn() }),
 }));
 vi.mock('./hotel-search-form', () => ({
-  HotelSearchForm: () => <form aria-label="Search hotels" />,
+  HotelSearchForm: ({ initialSearch }: { initialSearch: MockHotelSearchRequest | null }) => {
+    state.initialSearch = initialSearch;
+    return <form aria-label="Search hotels" />;
+  },
 }));
 vi.mock('./hotel-filters', () => ({
   HotelFilters: (props: NonNullable<typeof state.filters>) => {
@@ -112,6 +120,7 @@ function render() {
 }
 
 beforeEach(() => {
+  state.source = 'mock';
   state.params = new URLSearchParams(serializeHotelSearch(request));
   state.debounced = { request, settling: false };
   state.search = { data: response, error: null, isFetching: false, refetch: vi.fn() };
@@ -121,7 +130,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('hotel result filter actions keep the shareable search state', () => {
-  function historyHarness(initial: HotelSearchRequest) {
+  function historyHarness(initial: MockHotelSearchRequest) {
     state.params = new URLSearchParams(serializeHotelSearch(initial));
     state.debounced.request = initial;
     const write = (_data: unknown, _unused: string, url: string) => {
@@ -130,7 +139,7 @@ describe('hotel result filter actions keep the shareable search state', () => {
     const history = { pushState: vi.fn(write), replaceState: vi.fn(write) };
     vi.stubGlobal('window', { history });
     render();
-    return { history, currentSearch: () => parseHotelSearch(state.params) };
+    return { history, currentSearch: () => parseHotelSearch(state.params, 'mock') };
   }
 
   it('writes discrete filters immediately, resets pagination and preserves the stay and sort', () => {
@@ -195,6 +204,86 @@ describe('hotel result filter actions keep the shareable search state', () => {
     expect(state.params.has('filters')).toBe(false);
     expect(state.params.get('sort')).toBe('rating');
   });
+
+  it('filters all destinations without filling missing stay criteria in the URL', () => {
+    const initial: MockHotelSearchRequest = { currency: 'GBP', sort: 'rating', page: 2 };
+    const { history, currentSearch } = historyHarness(initial);
+    state.filters!.onChange({ starRatings: [1], minReviewScore: 7 });
+    expect(history.pushState).toHaveBeenCalledOnce();
+    expect(currentSearch()).toEqual({
+      currency: 'GBP',
+      sort: 'rating',
+      filters: { starRatings: [1], minReviewScore: 7 },
+    });
+    for (const key of ['destination', 'checkIn', 'checkOut', 'nationality', 'rooms', 'page'])
+      expect(state.params.has(key)).toBe(false);
+    render();
+    state.filters!.onReset();
+    expect(currentSearch()).toEqual({ currency: 'GBP', sort: 'rating' });
+  });
+});
+
+describe('empty mock hotel browsing', () => {
+  it('renders all 45 hotels using backend sample stay context and leaves the form and URL empty', () => {
+    state.params = new URLSearchParams();
+    state.debounced = { request: { currency: 'USD' }, settling: false };
+    state.search.data = {
+      hotels: Array.from({ length: 45 }, (_, index) => ({
+        ...response.hotels[0]!,
+        hotel: {
+          ...response.hotels[0]!.hotel,
+          id: `sample-${index}`,
+          name: `Sample hotel ${index}`,
+        },
+      })),
+      metadata: {
+        source: 'mock',
+        total: 45,
+        page: 1,
+        pageSize: 50,
+        totalPages: 1,
+        destination: 'All destinations',
+        previewStay: {
+          checkIn: '2030-06-10',
+          checkOut: '2030-06-17',
+          nationality: 'GB',
+          currency: 'USD',
+          rooms: [{ adults: 2, childrenAges: [] }],
+        },
+        facets: {
+          minPrice: 69000,
+          maxPrice: 69000,
+          starRatings: [],
+          reviewScores: [],
+          facilities: [],
+          mealTypes: [],
+          propertyTypes: [],
+          neighbourhoods: [],
+          refundableCount: 45,
+        },
+      },
+    };
+    const markup = render();
+    expect(markup.match(/id="hotel-sample-/g)).toHaveLength(45);
+    expect(markup).toContain('45 hotels');
+    expect(markup).toContain('Explore sample hotels across all destinations');
+    expect(markup).toContain('Sample stay');
+    expect(markup).not.toContain('Hotel results pages');
+    expect(state.initialSearch).toEqual({ currency: 'USD' });
+    expect(state.params.toString()).toBe('');
+  });
+
+  it.each(['live', undefined] as const)(
+    'does not use empty search browsing before confirmed mock mode: %s',
+    (source) => {
+      state.source = source;
+      state.params = new URLSearchParams();
+      const markup = render();
+      expect(markup).not.toContain('Previous search hotel');
+      expect(state.initialSearch).toBeNull();
+      if (!source) expect(markup).toContain('Loading destinations');
+    },
+  );
 });
 
 describe('hotel results retain only safe content during query transitions', () => {

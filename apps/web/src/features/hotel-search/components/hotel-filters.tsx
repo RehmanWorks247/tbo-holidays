@@ -107,6 +107,8 @@ export function HotelFilters({
   currency = 'USD',
   onReset,
   idPrefix = 'hotel-filters',
+  sampleStay = false,
+  allDestinations = false,
 }: {
   value: HotelResultsFilters;
   onChange: (filters: HotelResultsFilters) => void;
@@ -114,6 +116,8 @@ export function HotelFilters({
   currency?: HotelSearchRequest['currency'];
   onReset?: () => void;
   idPrefix?: string;
+  sampleStay?: boolean;
+  allDestinations?: boolean;
 }) {
   const {
     messages: { results: messages },
@@ -232,7 +236,9 @@ export function HotelFilters({
           </div>
         </Section>
         <Section title="Your budget" icon={<CircleDollarSign size={19} aria-hidden="true" />}>
-          <p className={styles.hint}>Total price for your whole stay ({currency})</p>
+          <p className={styles.hint}>
+            {sampleStay ? 'Sample stay total' : 'Total price for your whole stay'} ({currency})
+          </p>
           <div className={styles.budgetInputs}>
             <label htmlFor={`${idPrefix}-min-price`}>
               Min price
@@ -416,7 +422,10 @@ export function HotelFilters({
             </FilterOption>
           ))}
         </Section>
-        <p className={styles.countHint}>Counts show hotels in this destination before filters.</p>
+        <p className={styles.countHint}>
+          Counts show hotels {allDestinations ? 'across all destinations' : 'in this destination'}{' '}
+          before filters.
+        </p>
       </div>
     </aside>
   );

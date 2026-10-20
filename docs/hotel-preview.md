@@ -66,18 +66,21 @@ local database; it is not a disposable build cache.
 
 ## Inventory and prices
 
-`apps/api/src/modules/hotels/mock-hotel.inventory.ts` is seed input for 24 Dubai
-hotels and four each in London, Antalya and Bali. Runtime inventory comes from
-the `MockDestination`, `MockHotel` and `MockRate` PostgreSQL tables. Foreign keys,
+`apps/api/src/modules/hotels/mock-hotel.inventory.ts` is seed input for 45 hotels:
+26 in Dubai, six in London, seven in Antalya and six in Bali. Runtime inventory
+comes from the `MockDestination`, `MockHotel` and `MockRate` PostgreSQL tables. Foreign keys,
 unique hotel/currency/board combinations and price/rating checks protect those
 records. Every property name, score, review count,
 rate and offer is fictional. Neighbourhoods and destination names provide
 realistic geographic context. Photos are generic stock imagery, not evidence of
 any property's actual appearance; provenance is in [image sources](image-sources.md).
 
-Properties vary in star rating, review score, type, area, distance to the beach,
-facilities and board basis. Room options include room-only, breakfast and
-all-inclusive where appropriate. Rates vary deterministically with dates,
+Every destination includes one- through five-star properties and review scores
+below 7, between 7 and 8, between 8 and 9, and above 9, so each star and guest-rating
+filter has meaningful sample matches. One- and two-star properties have basic
+facilities; properties also vary in type, area, distance to the beach, facilities
+and board basis. Room options include room-only, breakfast and all-inclusive
+where appropriate. Rates vary deterministically with dates,
 weekends, rooms, adults and children, using checked integer minor-unit arithmetic.
 Six currencies have separately stored nightly rates generated from explicit
 sample pricing factors, not live exchange rates.
@@ -86,17 +89,30 @@ Policies and charges are generated consistently with the selected dates. Preview
 rates cannot be rechecked into an owned quote, booked or paid for; live recheck
 also rejects mock rate identifiers before accessing Redis.
 
-An empty `/hotels` URL starts a Dubai stay 30 days ahead for seven nights only
-after the API reports `source: mock`. It writes the dates, destination, nationality,
-currency and occupancy to the URL. Invalid or incomplete explicit URLs show a
-recovery state instead of silently replacing a user's criteria.
+After the API reports `source: mock`, an empty `/hotels` URL or an empty search
+shows all 45 hotels across all destinations. No destination, dates, nationality or
+guest entry is required. The form and URL retain omitted criteria; filter-only
+links also work. A destination or other valid optional criterion narrows the search.
+Invalid supplied values still show a validation/recovery state. Live mode continues
+to require complete stay criteria.
+
+The backend supplies a sample stay for pricing when criteria are omitted: 30 days
+ahead, seven nights (capped by `MAX_STAY_NIGHTS`), one room with two adults,
+nationality code `GB`, and the requested currency (USD by default). The nationality
+is a sample pricing input, not a claim about the visitor. With only check-in given,
+the sample duration follows that date; with only check-out given, it precedes that
+date and is shortened if needed to avoid starting in the past. Invalid or past
+explicit stays are rejected. The effective sample stay is returned as
+`metadata.previewStay` so cards and room details can explain their sample totals.
 
 ## API and URL behavior
 
 - `GET /api/v1/hotels/destinations`: `{ source, destinations }`; named mock
   destinations in preview, an empty list in live mode until catalogue lookup exists.
 - `GET /api/v1/hotels/search`: base stay fields plus `rooms` JSON, optional
-  `filters` JSON, `sort`, `page` and `pageSize`.
+  `filters` JSON, `sort`, `page` and `pageSize`. In mock mode all stay fields are
+  optional; no query string or `filters={}` returns the complete mock catalogue.
+  Live mode uses the existing strict search contract.
 - `GET /api/v1/hotels/:id`: property details, including `source: mock` for fixtures.
 - `POST /api/v1/hotels/recheck`: explicitly unavailable in preview.
 
@@ -109,9 +125,11 @@ are ANDed. Rate conditions must match the same rate: the displayed lowest price
 is always from the rates remaining after filtering.
 
 Sort values are `recommended`, `price-asc`, `price-desc`, `rating`, and `stars`.
-The default page size is 12, with a maximum of 50. Response metadata includes
+The default page size is 50 in mock mode (showing the full seeded catalogue) and
+12 in live mode, with a maximum of 50. Response metadata includes
 total matching hotels, pagination and facets. Facet counts deliberately describe
-the unfiltered destination inventory and are labelled that way in the UI.
+the unfiltered inventory for the selected destination, or all destinations when
+none is selected, and are labelled that way in the UI.
 
 Filter, sort and page choices round-trip through the URL. Discrete choices create
 history entries; hotel-name and budget edits replace the current entry to avoid
@@ -122,9 +140,11 @@ the controls. Filter chips remove individual selections; reset preserves the sta
 
 ## Responsiveness and performance
 
-Mock searches query only the requested destination and currency using indexed
-relations. The backend computes date/occupancy totals and applies the shared
-filters to those rates. It does not read the fixture file at runtime. This small
+Mock searches query the requested destination, or each persisted destination when
+none is selected, and the requested currency using indexed relations. The backend
+computes date/occupancy totals with each destination's seasonal rules, combines
+the results, then applies filters, sorting and pagination once across the complete
+set. It does not read the fixture file at runtime. This small
 development catalogue is not a load test of a production supplier catalogue.
 
 The frontend coalesces edits for 220 ms, cancels obsolete fetches, and caches query

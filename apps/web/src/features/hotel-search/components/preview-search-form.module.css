@@ -1,0 +1,537 @@
+.form {
+  --preview-ink: #102630;
+  --preview-muted: #697479;
+  --preview-line: #d5dadb;
+  --preview-card: #fff;
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 1.8fr) minmax(130px, 0.8fr) minmax(180px, 1fr) minmax(230px, 1.25fr)
+    120px;
+  width: 100%;
+  background: var(--preview-card);
+  color: var(--preview-ink);
+  border: 1px solid var(--preview-line);
+  border-radius: 8px;
+  text-align: left;
+}
+
+.destinationField,
+.nightsField,
+.dateField,
+.guestField {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 78px;
+  padding: 14px 18px;
+  border: 0;
+  border-inline-end: 1px solid var(--preview-line);
+  background: transparent;
+  text-align: left;
+}
+
+.destinationField:focus-within,
+.nightsField:focus-within,
+.dateField:hover,
+.guestField:hover {
+  background: #f5f9fc;
+}
+
+.destinationField {
+  border-radius: 8px 0 0 8px;
+}
+
+.destinationField label,
+.fieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--preview-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.inputRow,
+.fieldValue {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.inputRow > svg,
+.fieldValue > svg {
+  flex-shrink: 0;
+}
+
+.fieldValue > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.fieldValue > svg:last-child {
+  margin-inline-start: auto;
+}
+
+.inputRow input,
+.nightsField select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  appearance: none;
+}
+
+.inputRow input::placeholder {
+  color: var(--preview-ink);
+  opacity: 1;
+}
+
+.nightsField select option {
+  color: var(--foreground);
+  background: var(--card);
+}
+
+.clearDestination,
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+}
+
+.clearDestination:hover,
+.closeButton:hover {
+  background: #eef2f4;
+}
+
+.searchButton,
+.doneButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 14px 18px;
+  border: 0;
+  color: #102630;
+  background: #ffdd00;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 150ms ease;
+}
+
+.searchButton {
+  border-radius: 0 7px 7px 0;
+}
+
+.searchButton:hover,
+.doneButton:hover {
+  background: #f3cd00;
+}
+
+.popover {
+  --preview-ink: #102630;
+  --preview-muted: #697479;
+  --preview-line: #e0e3e4;
+  --preview-card: #fff;
+  color: var(--preview-ink);
+  background: var(--preview-card);
+  border: 1px solid var(--preview-line);
+  border-radius: 6px;
+  box-shadow: 0 9px 28px rgb(16 38 48 / 18%);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.destinationPopover {
+  width: 430px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.destinationHeading {
+  margin: 0;
+  padding: 19px 21px 15px;
+  border-bottom: 1px solid var(--preview-line);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.suggestionList {
+  max-height: min(470px, calc(100dvh - 220px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 0;
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 84px;
+  gap: 14px;
+  padding: 12px 21px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.suggestion[aria-selected='true'] {
+  background: #f0f5f8;
+}
+
+.suggestionImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  background: #eef3f5;
+  border-radius: 5px;
+}
+
+.suggestionImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.suggestionText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.suggestionText strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.suggestionText > span {
+  color: var(--preview-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.suggestionText small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--preview-muted);
+  font-size: 10px;
+}
+
+.hotelTag {
+  align-self: start;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: #eaf4fc;
+  font-size: 10px;
+}
+
+.noSuggestions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 0;
+  padding: 24px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.guestsPopover {
+  width: 370px;
+  padding: 23px;
+}
+
+.popoverHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.popoverHeading h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.roomsList {
+  max-height: min(390px, calc(100dvh - 270px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.room {
+  position: relative;
+  min-width: 0;
+  margin: 0 0 22px;
+  padding: 0 0 18px;
+  border: 0;
+  border-bottom: 1px solid var(--preview-line);
+}
+
+.room:last-child {
+  margin-bottom: 0;
+  border: 0;
+}
+
+.room legend {
+  margin-bottom: 17px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.removeRoom {
+  position: absolute;
+  inset-inline-end: 0;
+  top: -33px;
+  border: 0;
+  padding: 0;
+  color: #086cb7;
+  background: transparent;
+  font-size: 11px;
+  text-decoration: underline;
+}
+
+.guestRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 15px 0;
+}
+
+.guestRow > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guestRow strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.guestRow small {
+  color: var(--preview-muted);
+  font-size: 11px;
+}
+
+.counter {
+  display: grid;
+  grid-template-columns: 32px 34px 32px;
+  align-items: center;
+  text-align: center;
+}
+
+.counter button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #a8b1b6;
+  border-radius: 50%;
+  padding: 0;
+  color: var(--preview-ink);
+  background: transparent;
+}
+
+.counter button:hover:not(:disabled) {
+  border-color: #0d72bc;
+  color: #0d72bc;
+  background: #edf7ff;
+}
+
+.counter button:disabled {
+  opacity: 0.35;
+}
+
+.counter output {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.childAges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.childAges label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+}
+
+.childAges select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--preview-line);
+  border-radius: 4px;
+  color: inherit;
+  background: var(--preview-card);
+  font-size: 13px;
+}
+
+.addRoom {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 25px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.addRoom:disabled {
+  opacity: 0.4;
+}
+
+.doneButton {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 5px;
+}
+
+.calendarPopover {
+  width: fit-content;
+  padding: 18px;
+}
+
+.calendarPopover p {
+  margin-top: 14px;
+  color: var(--preview-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+:global(.dark) .form,
+:global(.dark) .popover {
+  --preview-ink: #f0f4f6;
+  --preview-muted: #adbbc2;
+  --preview-line: #40515b;
+  --preview-card: #202d35;
+}
+
+:global(.dark) .destinationField:focus-within,
+:global(.dark) .nightsField:focus-within,
+:global(.dark) .dateField:hover,
+:global(.dark) .guestField:hover,
+:global(.dark) .suggestion[aria-selected='true'],
+:global(.dark) .suggestionImage,
+:global(.dark) .clearDestination:hover,
+:global(.dark) .closeButton:hover {
+  background: #2a3d48;
+}
+
+:global(.dark) .hotelTag,
+:global(.dark) .counter button:hover:not(:disabled) {
+  background: #173e56;
+  color: #9bd3fa;
+}
+
+:global(.dark) .removeRoom {
+  color: #9bd3fa;
+}
+
+@media (max-width: 1100px) {
+  .form {
+    grid-template-columns: minmax(180px, 1.5fr) 115px minmax(155px, 1fr) minmax(200px, 1.3fr) 66px;
+  }
+  .destinationField,
+  .nightsField,
+  .dateField,
+  .guestField {
+    padding-inline: 12px;
+  }
+  .searchButton span {
+    display: none;
+  }
+  .inputRow,
+  .fieldValue {
+    gap: 6px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 800px) {
+  .form,
+  .compact {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .destinationField,
+  .nightsField,
+  .dateField,
+  .guestField {
+    min-height: 72px;
+    border: 1px solid var(--preview-line);
+    border-radius: 6px;
+    background: var(--preview-card);
+  }
+  .destinationField,
+  .guestField,
+  .searchButton {
+    grid-column: 1 / -1;
+  }
+  .searchButton {
+    min-height: 48px;
+    border-radius: 6px;
+  }
+  .searchButton span {
+    display: inline;
+  }
+  .inputRow,
+  .fieldValue {
+    font-size: 14px;
+  }
+  .suggestionList {
+    max-height: min(400px, calc(100dvh - 200px));
+  }
+}
+
+@media (max-width: 380px) {
+  .guestsPopover {
+    padding: 18px;
+  }
+  .destinationHeading,
+  .suggestion {
+    padding-inline: 16px;
+  }
+}

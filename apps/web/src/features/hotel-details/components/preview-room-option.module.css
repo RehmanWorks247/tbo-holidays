@@ -1,0 +1,277 @@
+.card {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.95fr) minmax(200px, 1.12fr) minmax(220px, 1.25fr);
+  min-height: 206px;
+  border: 1px solid #d5d9da;
+  border-radius: 5px;
+  background: #fff;
+  color: #142c38;
+  box-shadow: 0 1px 2px rgb(20 44 56 / 3%);
+}
+
+.room,
+.terms,
+.selection {
+  min-width: 0;
+  padding: 25px 22px;
+}
+
+.room,
+.terms {
+  border-inline-end: 1px solid #e2e4e4;
+}
+
+.room h3 {
+  margin: 0 0 24px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.facilities summary,
+.policy summary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.facilities summary::-webkit-details-marker,
+.policy summary::-webkit-details-marker {
+  display: none;
+}
+
+.facilities summary > span {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.facilities[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.facilityContent {
+  margin-top: 16px;
+}
+
+.facilityContent img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.facilityContent ul {
+  display: grid;
+  gap: 9px;
+  padding: 0;
+  margin: 14px 0 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.facilityContent li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.facilityContent p {
+  margin: 12px 0 0;
+  color: #62717a;
+  font-size: 11px;
+}
+
+.board,
+.payment,
+.flexible {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.board {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.terms svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.policy summary {
+  font-size: 12px;
+  gap: 7px;
+}
+
+.policy p {
+  padding: 10px;
+  margin: 10px 0 0;
+  border-radius: 4px;
+  background: #f4f6f7;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.payment,
+.flexible {
+  margin: 24px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.flexible {
+  color: #187347;
+}
+
+.selection {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 15px;
+  text-align: center;
+}
+
+.price {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.price strong {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.price > span {
+  display: inline;
+  white-space: nowrap;
+  margin-inline-start: 4px;
+}
+
+.continue {
+  display: flex;
+  min-height: 45px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #eac73d;
+  border-radius: 5px;
+  background: #ffdc53;
+  color: #172b36;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 120ms ease;
+}
+
+.continue:hover {
+  background: #f6ce39;
+}
+
+.priceNote {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #64727a;
+}
+
+:global(.dark) .card {
+  color: #edf2f5;
+  background: #202c34;
+  border-color: #455661;
+}
+
+:global(.dark) .room,
+:global(.dark) .terms {
+  border-color: #455661;
+}
+
+:global(.dark) .priceNote,
+:global(.dark) .facilityContent p {
+  color: #b3c4ce;
+}
+
+:global(.dark) .policy p {
+  background: #293943;
+}
+
+:global(.dark) .flexible {
+  color: #8ed3af;
+}
+
+@media (max-width: 1120px) {
+  .card {
+    grid-template-columns: minmax(135px, 0.85fr) minmax(175px, 1fr) minmax(180px, 1fr);
+  }
+
+  .room,
+  .terms,
+  .selection {
+    padding: 20px 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .card {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .terms {
+    border-inline-end: 0;
+  }
+
+  .selection {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    border-top: 1px solid #e2e4e4;
+  }
+
+  .priceNote {
+    grid-column: 1 / -1;
+  }
+
+  :global(.dark) .selection {
+    border-color: #455661;
+  }
+}
+
+@media (max-width: 540px) {
+  .card {
+    grid-template-columns: 1fr;
+  }
+
+  .room {
+    padding-bottom: 17px;
+    border-inline-end: 0;
+    border-bottom: 1px solid #e2e4e4;
+  }
+
+  .room h3 {
+    margin-bottom: 13px;
+  }
+
+  .terms {
+    padding-block: 18px;
+  }
+
+  .payment,
+  .flexible {
+    margin-top: 16px;
+  }
+
+  .selection {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding-top: 18px;
+  }
+}

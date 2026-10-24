@@ -32,7 +32,8 @@ import { ThemeToggle } from './theme-toggle';
 type OpenDropdown = 'inspiration' | 'destinations' | null;
 
 export function SiteHeader() {
-  const isHotelResults = usePathname() === '/hotels';
+  const pathname = usePathname();
+  const isHotelResults = pathname === '/hotels' || pathname.startsWith('/preview/');
   const { locale, dir, messages } = useSiteMessages();
   const copy = messages.header;
   const [mobileOpen, setMobileOpen] = useState(false);

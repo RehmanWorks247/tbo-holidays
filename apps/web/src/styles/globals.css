@@ -143,7 +143,8 @@ summary:focus-visible {
   margin-inline: auto;
   padding: 32px 24px 64px;
 }
-.site-main:has([data-hotel-results]) {
+.site-main:has([data-hotel-results]),
+.site-main:has([data-ui-preview]) {
   max-width: none;
   padding: 0;
 }

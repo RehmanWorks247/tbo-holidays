@@ -10,6 +10,7 @@ import {
   Heart,
   MapPin,
   Palmtree,
+  Plane,
   Search,
   ShieldCheck,
   Sparkles,
@@ -18,9 +19,10 @@ import {
 import Image from 'next/image';
 import { useRef, useState } from 'react';
 
+import { PreviewEntry } from '@/components/shared/preview-shell';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useHolidayInspiration } from '@/features/hotel-search/components/holiday-inspiration-provider';
-import { HotelSearchForm } from '@/features/hotel-search/components/hotel-search-form';
+import { PreviewSearchForm } from '@/features/hotel-search/components/preview-search-form';
 import { usePageMessages } from '@/providers/use-page-messages';
 
 import styles from './holiday-home.module.css';
@@ -51,6 +53,7 @@ export function HolidayHome() {
     t,
   } = usePageMessages();
   const [category, setCategory] = useState<Category>('all');
+  const [product, setProduct] = useState<'hotel' | 'hotel-flights'>('hotel');
   const { savedIds, toggleSaved } = useHolidayInspiration();
   const [selected, setSelected] = useState<Destination | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -70,16 +73,35 @@ export function HolidayHome() {
     <div className={styles.home} lang={locale} dir={dir}>
       <section id="hotel-search" className={styles.searchBand} aria-label={copy.search.label}>
         <div className={styles.searchTabs}>
-          <span className={styles.activeTab}>
+          <button
+            type="button"
+            className={product === 'hotel' ? styles.activeTab : undefined}
+            aria-pressed={product === 'hotel'}
+            aria-controls="home-hotel-search"
+            onClick={() => setProduct('hotel')}
+          >
             <BedDouble size={19} aria-hidden="true" /> {copy.search.hotels}
-          </span>
+          </button>
+          <button
+            type="button"
+            className={product === 'hotel-flights' ? styles.activeTab : undefined}
+            aria-pressed={product === 'hotel-flights'}
+            aria-controls="home-hotel-search"
+            onClick={() => setProduct('hotel-flights')}
+            lang="en"
+          >
+            <Plane size={19} aria-hidden="true" /> hotel+flights
+          </button>
           <a href="#holiday-inspiration">
             <Sparkles size={18} aria-hidden="true" /> {copy.search.inspire}{' '}
             <span>{copy.search.findHappy}</span>
           </a>
           <p>{copy.search.tagline}</p>
         </div>
-        <HotelSearchForm />
+        <div id="home-hotel-search">
+          <PreviewSearchForm product={product} />
+        </div>
+        <PreviewEntry />
       </section>
 
       <section className={styles.heroGrid} aria-label={copy.hero.label}>
@@ -416,7 +438,11 @@ export function HolidayHome() {
               {copy.help.searchQuestion}
               <ChevronDown size={18} aria-hidden="true" />
             </summary>
-            <p>{copy.help.searchAnswer}</p>
+            <p lang="en" dir="ltr">
+              Choose a destination or hotel from the suggestions, select your check-in date and
+              number of nights, and add the adults and children in each room. Select Search to
+              explore the hotel booking demo with your chosen filters.
+            </p>
           </details>
           <details>
             <summary>

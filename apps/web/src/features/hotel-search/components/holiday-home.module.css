@@ -28,12 +28,20 @@
   font-size: 14px;
 }
 .searchTabs > span,
+.searchTabs > button,
 .searchTabs > a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 62px;
   position: relative;
+  font-weight: 600;
+}
+.searchTabs > button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
   font-weight: 600;
 }
 .activeTab {

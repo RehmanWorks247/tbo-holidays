@@ -4,6 +4,8 @@ A TypeScript hotel-booking scaffold built as a pnpm/Turborepo monorepo. Next.js 
 
 This is production-oriented **structure**, with working validation, persistence boundaries and failure handling. Live bookings are intentionally unavailable until the account-specific TBO contract and a real payment gateway are implemented and verified. An explicit, read-only hotel preview provides fictional inventory for development; it never simulates a successful booking or payment.
 
+See the [project blueprint](docs/project-blueprint.md) for the product vision, hotel-first launch scope, future flight plus hotel trips, and delivery gates.
+
 ## Stack
 
 - Next.js 16.3.8 App Router, React 19, Tailwind 4, local shadcn/ui and Radix primitives, next-themes
@@ -84,6 +86,15 @@ No separate UI package or generic configuration package exists yet: there is one
 The Best Holiday Packages homepage uses the supplied company logo, a charcoal theme with a `#00A7E1` blue accent, a responsive travel layout, local destination photography, and shared shadcn-style Radix primitives. The appearance menu supports light, dark, and system themes with a persistent browser preference. Semantic colors live centrally in `apps/web/src/styles/globals.css`; feature layouts use CSS Modules. See [theming and frontend design](docs/theming.md) for customization and [image sources](docs/image-sources.md) for logo and photography credits.
 
 Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. Live search still requires a supplier city code and complete stay criteria; the backend remains authoritative for inventory, prices, and booking outcomes.
+
+## Frontend-only booking UI demo
+
+Open `/preview/hotels` for the reference-inspired destination and guest dropdowns,
+hotel room selection, and extras/passengers/payment screens. This separate demo
+uses local fixtures and photos and runs with just `pnpm --filter @hotel/web dev`.
+It never creates bookings or processes payments. See [the UI preview guide](docs/ui-booking-preview.md).
+The homepage uses the same destination, date, nights and guest filters and sends
+searches directly into this demo flow.
 
 ## Configuration and integration boundaries
 

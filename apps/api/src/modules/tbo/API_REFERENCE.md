@@ -93,8 +93,8 @@ assume case-insensitive routing. All implemented reads remain disabled by defaul
 | Book (overview also says HotelBook) | `POST /Book`                      | Create/voucher reservation                            | 32-41     | Disabled                |
 | Cancel                              | `POST /Cancel`                    | Cancel by TBO confirmation                            | 41-42     | Disabled                |
 | BookingDetail                       | `POST /BookingDetail`             | Retrieve/reconcile one reservation                    | 42-51     | Disabled                |
-| CountryList                         | `GET /CountryList`                | Country catalog                                       | 51-52     | Not implemented         |
-| CityList                            | `POST /CityList`                  | Cities in a country                                   | 53-54     | Not implemented         |
+| CountryList                         | `GET /CountryList`                | Country catalog                                       | 51-52     | Catalogue read; gated   |
+| CityList                            | `POST /CityList`                  | Cities in a country                                   | 53-54     | Catalogue read; gated   |
 | HotelCodeList                       | `GET /hotelcodelist`              | Complete hotel-code catalog                           | 54-55     | Not implemented         |
 | HotelDetails                        | `POST /HotelDetails`              | Static hotel and optional room content                | 56-62     | Hotel-level read; gated |
 | HotelBookingDetailBasedOnDate       | `POST /BookingDetailsbasedondate` | Agency booking history                                | 62-64     | Not implemented         |
@@ -433,7 +433,9 @@ string `"true"`. Use an account-verified schema rather than broad coercion.
 an array here, unlike the HotelDetails example. The description mentions images,
 but the response table does not define an image field; do not assume one exists.
 
-The current adapter calls this per search with detailed response true. The PDF
+The current adapter persists normalized city hotel content and refreshes it after
+the application-configured static content TTL (default 24 hours), with detailed
+response true. This TTL is application policy, not a supplier guarantee. The PDF
 does not establish cache lifetime, pagination, deletions, rate limits or catalog
 refresh policy; confirm those before building synchronization. Non-detailed
 response fields must be verified before using them with the schema requiring names.
@@ -513,7 +515,27 @@ Do not make production schemas permissive just to accept contradictory examples.
 
 ## Current code and verification gaps
 
-These describe the implementation reviewed on 15 October 2026, **not certified
+**29 October 2026 search update:** the application resolves country/city/hotel
+names without case or accent sensitivity, including Turkey/Türkiye aliases.
+Country search loads every city catalogue with bounded concurrency; a separate
+paginated static catalogue supports browsing without dates or invented rates.
+Country names are imported globally; city/hotel content loads on selection.
+An unfiltered catalogue browse imports every country and city in the background,
+shares that work across paginated requests, and reuses fresh static content.
+The staging read check remains blocked by DNS (`ENOTFOUND`), so this is implemented
+application behavior verified by synthetic tests, not certified account behavior.
+
+**28 October 2026 update:** CountryList/CityList now populate an indexed,
+account-scoped PostgreSQL catalogue. Hotel catalogues/details are cached, and
+public suggestions use database reads plus a short Redis cache. The homepage
+hotel flow now uses real search instead of the separate preview. The supplied
+staging endpoint's CountryList verification was attempted but blocked by DNS
+(`ENOTFOUND`); no real account fixture or performance claim is certified. See
+[live hotel search](../../../../../docs/live-hotel-search.md) and the safe
+`tbo:verify` command in [integration notes](INTEGRATION.md).
+
+The historical read-contract review below describes the implementation reviewed
+on 15 October 2026 (catalogue/transport descriptions are superseded above), **not certified
 account behavior**. Read mappings have synthetic contract fixtures; no live TBO
 verification has been performed. `TBO_READS_ENABLED=false` remains the default.
 

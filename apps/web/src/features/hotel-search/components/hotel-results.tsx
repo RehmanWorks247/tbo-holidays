@@ -39,6 +39,7 @@ import { useSitePreferences } from '@/providers/site-preferences-provider';
 import { usePageMessages } from '@/providers/use-page-messages';
 
 import { HotelCard } from './hotel-card';
+import { HotelCatalog } from './hotel-catalog';
 import { HotelFilters } from './hotel-filters';
 import styles from './hotel-results.module.css';
 import { HotelSearchForm } from './hotel-search-form';
@@ -55,6 +56,13 @@ export function HotelResults() {
   const mode = destinations.data?.source ?? 'live';
   const request = useMemo(
     () => (mode === 'mock' ? parseHotelSearch(params, 'mock', currency) : parseHotelSearch(params)),
+    [params, mode, currency],
+  );
+  const catalogRequest = useMemo(
+    () =>
+      mode === 'live' && !params.get('checkIn') && !params.get('checkOut')
+        ? parseHotelSearch(params, 'mock', currency)
+        : null,
     [params, mode, currency],
   );
   const requestRef = useRef(request);
@@ -85,8 +93,9 @@ export function HotelResults() {
     metadata?.destination ??
     destinations.data?.destinations.find((item) => item.id === request?.destination)?.name ??
     request?.destination;
-  const formKey = request
-    ? JSON.stringify({ ...searchStayOnly(request), currency: undefined })
+  const formSearch = request ?? catalogRequest;
+  const formKey = formSearch
+    ? JSON.stringify({ ...searchStayOnly(formSearch), currency: undefined })
     : 'new';
 
   function update(next: MockHotelSearchRequest, replace = false) {
@@ -125,10 +134,12 @@ export function HotelResults() {
           </Link>
         </div>
         <p className={styles.mobileSearchLabel}>Refine your stay</p>
-        <HotelSearchForm key={formKey} initialSearch={request} variant="results" />
+        <HotelSearchForm key={formKey} initialSearch={formSearch} variant="results" />
       </section>
 
-      {!request ? (
+      {catalogRequest ? (
+        <HotelCatalog search={catalogRequest} />
+      ) : !request ? (
         <div className={styles.intro}>
           <BedDouble size={40} aria-hidden="true" />
           <h1 lang="en">Find your next favourite hotel</h1>
@@ -137,6 +148,12 @@ export function HotelResults() {
               ? 'This search link is incomplete or invalid. Choose your destination and dates above.'
               : copy.chooseSearch}
           </p>
+          {mode === 'live' ? (
+            <p lang="en">
+              Search by country, city or hotel name, then choose your dates and guests to see live
+              availability and prices.
+            </p>
+          ) : null}
           {destinations.isPending ? <p role="status">Loading destinations…</p> : null}
           {destinations.error ? <RequestError error={destinations.error} /> : null}
         </div>
@@ -181,6 +198,7 @@ export function HotelResults() {
                     </DialogDescription>
                     <HotelFilters
                       value={filters}
+                      source={metadata?.source ?? mode}
                       onChange={changeFilters}
                       facets={metadata?.facets}
                       currency={request.currency}
@@ -233,6 +251,7 @@ export function HotelResults() {
             <div className={styles.desktopFilters}>
               <HotelFilters
                 value={filters}
+                source={metadata?.source ?? mode}
                 onChange={changeFilters}
                 facets={metadata?.facets}
                 currency={request.currency}
@@ -307,9 +326,13 @@ export function HotelResults() {
                       <SearchX size={42} />
                       <h2>No stays match just yet</h2>
                       <p>
-                        Try widening your budget or removing a filter to find more places to stay.
+                        {active.length
+                          ? 'Try widening your budget or removing a filter to find more places to stay.'
+                          : 'No rooms are available for these dates and guests. Try different dates or another destination.'}
                       </p>
-                      <button onClick={() => changeFilters({})}>Reset filters</button>
+                      {active.length ? (
+                        <button onClick={() => changeFilters({})}>Reset filters</button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

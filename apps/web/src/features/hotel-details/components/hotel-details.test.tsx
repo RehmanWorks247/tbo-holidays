@@ -12,6 +12,7 @@ const fixture = vi.hoisted(() => ({
   previewStay: undefined as HotelPreviewStay | undefined,
   requests: [] as (MockHotelSearchRequest | null)[],
   detailsPending: false,
+  formSearch: undefined as MockHotelSearchRequest | undefined,
 }));
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(fixture.query),
@@ -36,6 +37,12 @@ vi.mock('@/features/hotel-search/queries/use-hotel-search', () => ({
       isPending: !request,
       error: null,
     };
+  },
+}));
+vi.mock('@/features/hotel-search/components/hotel-search-form', () => ({
+  HotelSearchForm: ({ initialSearch }: { initialSearch: MockHotelSearchRequest }) => {
+    fixture.formSearch = initialSearch;
+    return <form aria-label="Check this hotel's availability" />;
   },
 }));
 
@@ -99,6 +106,7 @@ describe('hotel detail sample and live boundaries', () => {
     fixture.previewStay = undefined;
     fixture.requests = [];
     fixture.detailsPending = false;
+    fixture.formSearch = undefined;
   });
   it('shows sample inventory with disabled booking and preserves displayed backend charges', () => {
     const html = render();
@@ -172,12 +180,15 @@ describe('hotel detail sample and live boundaries', () => {
     expect(fixture.requests.at(-1)).toBeNull();
   });
 
-  it('keeps incomplete live searches unavailable', () => {
+  it('offers a date and guest search for the exact hotel without inventing rates', () => {
     fixture.source = 'live';
     fixture.query = 'currency=GBP';
     const html = render();
     expect(fixture.requests.at(-1)).toBeNull();
     expect(html).not.toContain('/checkout?');
     expect(html).not.toContain('Sample stay');
+    expect(html).toContain('Check this hotel&#x27;s availability');
+    expect(fixture.formSearch?.hotelId).toBe(hotel.id);
+    expect(fixture.formSearch?.checkIn).toBeUndefined();
   });
 });

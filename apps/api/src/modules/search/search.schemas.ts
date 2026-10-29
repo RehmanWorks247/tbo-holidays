@@ -34,6 +34,7 @@ export const mockHotelSearchQuerySchema = z.preprocess(
 
 export const cachedRateSchema = z.object({
   supplier: z.string(),
+  supplierScope: z.string().optional(),
   hotel: hotelSchema,
   criteria: hotelSearchRequestSchema,
   supplierRateId: z.string().min(1),

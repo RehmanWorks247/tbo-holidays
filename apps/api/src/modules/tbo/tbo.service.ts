@@ -1,8 +1,12 @@
+import { createHash } from 'node:crypto';
+
 import { type Hotel, type HotelSearchRequest, hotelSearchRequestSchema } from '@hotel/contracts';
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { z } from 'zod';
 
 import { DomainError } from '../../common/errors/domain-error';
+import type { Environment } from '../../config/environment';
 import type {
   HotelSupplier,
   SupplierBookingRequest,
@@ -12,14 +16,13 @@ import type {
 } from '../hotels/hotel-supplier';
 import { CurrencyService } from '../pricing/currency.service';
 import {
-  tboCatalogResponseSchema,
-  tboDetailsResponseSchema,
   tboHotelCodeSchema,
   tboPreBookResponseSchema,
   tboSearchResponseSchema,
 } from './dto/tbo.schemas';
-import { mapCatalogHotel, mapHotelDetails, mapHotelRate } from './mappers/tbo-hotel.mapper';
+import { mapHotelRate } from './mappers/tbo-hotel.mapper';
 import { TboClient } from './tbo.client';
+import { TboCatalogService } from './tbo-catalog.service';
 
 function parseResponse<T>(schema: z.ZodType<T>, response: unknown): T {
   const parsed = schema.safeParse(response);
@@ -36,27 +39,41 @@ function parseResponse<T>(schema: z.ZodType<T>, response: unknown): T {
 @Injectable()
 export class TboService implements HotelSupplier {
   readonly name = 'TBO';
+  readonly cacheScope: string;
 
   constructor(
     private readonly client: TboClient,
     private readonly money: CurrencyService,
-  ) {}
+    private readonly catalog: TboCatalogService,
+    private readonly config: ConfigService<Environment, true>,
+  ) {
+    this.cacheScope = createHash('sha256')
+      .update(
+        JSON.stringify([
+          config.get('TBO_BASE_URL', { infer: true }),
+          config.get('TBO_USERNAME', { infer: true }),
+        ]),
+      )
+      .digest('hex');
+  }
 
   async searchHotels(input: HotelSearchRequest): Promise<SupplierSearchResult[]> {
     this.assertCriteria(input);
-    const cityCode = this.parseCode(input.destination, 'INVALID_DESTINATION');
-    const catalog = parseResponse(
-      tboCatalogResponseSchema,
-      await this.client.read('TBOHotelCodeList', {
-        CityCode: cityCode,
-        IsDetailedResponse: true,
-      }),
-    );
-    const hotels = new Map(
-      catalog.Hotels.map((hotel) => [hotel.HotelCode, mapCatalogHotel(hotel)]),
-    );
-    if (hotels.size !== catalog.Hotels.length) throw this.invalidResponse();
-    const codes = [...hotels.keys()];
+    const deadline = Date.now() + this.config.get('TBO_SEARCH_TIMEOUT_MS', { infer: true });
+    const selectedCode = input.hotelId
+      ? this.parseCode(input.hotelId, 'INVALID_HOTEL_ID')
+      : undefined;
+    const catalog = await this.catalog.getSearchHotels(input.destination, selectedCode, deadline);
+    const hotels = new Map(catalog.map((hotel) => [hotel.id, hotel]));
+    if (hotels.size !== catalog.length) throw this.invalidResponse();
+    if (selectedCode && !hotels.has(selectedCode)) {
+      throw new DomainError(
+        'HOTEL_NOT_AVAILABLE',
+        'This hotel is not available in the selected destination.',
+        404,
+      );
+    }
+    const codes = selectedCode ? [selectedCode] : [...hotels.keys()];
     const results: SupplierSearchResult[] = [];
     const seenRates = new Set<string>();
     // Bound concurrent requests; do not flood the supplier for a large destination.
@@ -65,7 +82,9 @@ export class TboService implements HotelSupplier {
       for (let start = offset; start < Math.min(offset + 300, codes.length); start += 100) {
         batches.push(codes.slice(start, start + 100));
       }
-      const responses = await Promise.all(batches.map((batch) => this.searchCodes(batch, input)));
+      const responses = await Promise.all(
+        batches.map((batch) => this.searchCodes(batch, input, deadline)),
+      );
       for (const response of responses) {
         for (const hotel of response.HotelResult) {
           const details = hotels.get(hotel.HotelCode);
@@ -89,19 +108,7 @@ export class TboService implements HotelSupplier {
 
   async getHotelDetails(hotelId: string): Promise<Hotel> {
     const code = this.parseCode(hotelId, 'INVALID_HOTEL_ID');
-    const result = parseResponse(
-      tboDetailsResponseSchema,
-      await this.client.read('HotelDetails', {
-        Hotelcodes: code,
-        Language: 'EN',
-      }),
-    );
-    if (result.HotelDetails.length === 0)
-      throw new DomainError('HOTEL_NOT_AVAILABLE', 'This hotel is not available.', 404);
-    const hotel = result.HotelDetails[0];
-    if (result.HotelDetails.length !== 1 || !hotel || hotel.HotelCode !== code)
-      throw this.invalidResponse();
-    return mapHotelDetails(hotel);
+    return this.catalog.getHotelDetails(code);
   }
 
   async getAvailability(hotelId: string, input: HotelSearchRequest): Promise<SupplierRate[]> {
@@ -177,23 +184,27 @@ export class TboService implements HotelSupplier {
     );
   }
 
-  private async searchCodes(codes: string[], input: HotelSearchRequest) {
+  private async searchCodes(codes: string[], input: HotelSearchRequest, deadline?: number) {
     const result = parseResponse(
       tboSearchResponseSchema,
-      await this.client.read('Search', {
-        CheckIn: input.checkIn,
-        CheckOut: input.checkOut,
-        HotelCodes: codes.join(','),
-        GuestNationality: input.nationality,
-        PaxRooms: input.rooms.map((room) => ({
-          Adults: room.adults,
-          Children: room.childrenAges.length,
-          ChildrenAges: room.childrenAges,
-        })),
-        ResponseTime: 23,
-        IsDetailedResponse: false,
-        Filters: { MealType: 'All' },
-      }),
+      await this.client.read(
+        'Search',
+        {
+          CheckIn: input.checkIn,
+          CheckOut: input.checkOut,
+          HotelCodes: codes.join(','),
+          GuestNationality: input.nationality,
+          PaxRooms: input.rooms.map((room) => ({
+            Adults: room.adults,
+            Children: room.childrenAges.length,
+            ChildrenAges: room.childrenAges,
+          })),
+          ResponseTime: 23,
+          IsDetailedResponse: false,
+          Filters: { MealType: 'All' },
+        },
+        deadline,
+      ),
     );
     const seenHotels = new Set<string>();
     const seenRates = new Set<string>();

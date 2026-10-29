@@ -23,12 +23,12 @@ describe('hotel search form modes', () => {
     vi.useRealTimers();
   });
 
-  it('accepts an empty mock browse form while keeping live stay fields required', () => {
+  it('accepts a catalogue browse form in both modes without inventing a stay', () => {
     expect(createHotelSearchFormSchema('mock').parse({})).toEqual({ currency: 'USD' });
-    expect(createHotelSearchFormSchema('live').safeParse({}).success).toBe(false);
+    expect(createHotelSearchFormSchema('live').parse({})).toEqual({ currency: 'USD' });
   });
 
-  it('accepts the blank default form only in mock mode without filling dates or location', () => {
+  it('accepts the blank default form without filling dates or location', () => {
     const defaults = {
       destination: '',
       checkIn: '',
@@ -42,7 +42,7 @@ describe('hotel search form modes', () => {
     expect(parsed.destination).toBeUndefined();
     expect(parsed.checkIn).toBeUndefined();
     expect(parsed.checkOut).toBeUndefined();
-    expect(createHotelSearchFormSchema('live').safeParse(defaults).success).toBe(false);
+    expect(createHotelSearchFormSchema('live').parse(defaults)).toEqual(parsed);
   });
 
   it.each([
@@ -58,13 +58,33 @@ describe('hotel search form modes', () => {
       expect(parsed.rooms).toBeUndefined();
       expect(
         createHotelSearchFormSchema('live').safeParse({ ...criteria, currency: 'GBP' }).success,
-      ).toBe(false);
+      ).toBe(!('checkIn' in criteria || 'checkOut' in criteria));
     },
   );
 
   it('accepts a complete future stay in both modes', () => {
     expect(createHotelSearchFormSchema('live').parse(completeStay)).toEqual(completeStay);
     expect(createHotelSearchFormSchema('mock').parse(completeStay)).toEqual(completeStay);
+  });
+
+  it.each(['Turkey', 'turkey', 'tUrKeY', 'Istanbul', 'istanbul'])(
+    'passes typed destination %s to the backend without changing its spelling',
+    (destination) => {
+      const parsed = createHotelSearchFormSchema('live').parse({ ...completeStay, destination });
+      expect(parsed.destination).toBe(destination);
+    },
+  );
+
+  it('browses a country without dates but requires real stay details once dates are selected', () => {
+    const schema = createHotelSearchFormSchema('live');
+    expect(schema.parse({ destination: 'tUrKeY' })).toEqual({
+      destination: 'tUrKeY',
+      currency: 'USD',
+    });
+    expect(
+      schema.safeParse({ destination: 'Turkey', checkIn: '2030-06-10', checkOut: '2030-06-17' })
+        .success,
+    ).toBe(false);
   });
 
   it.each([

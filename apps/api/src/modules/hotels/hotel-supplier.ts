@@ -72,6 +72,8 @@ export interface SupplierBookingResult {
 
 export interface HotelSupplier {
   readonly name: string;
+  /** Non-secret account/environment fingerprint used to isolate cached supplier data. */
+  readonly cacheScope?: string;
   searchHotels(input: HotelSearchRequest): Promise<SupplierSearchResult[]>;
   getHotelDetails(hotelId: string): Promise<Hotel>;
   getAvailability(hotelId: string, input: HotelSearchRequest): Promise<SupplierRate[]>;

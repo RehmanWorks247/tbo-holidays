@@ -14,6 +14,8 @@ export const hotelSearchFormSchema = hotelSearchRequestSchema.superRefine((value
 export function createHotelSearchFormSchema(mode: 'live' | 'mock') {
   return mockHotelSearchRequestSchema.superRefine((value, context) => {
     if (mode === 'live') {
+      // Static supplier content can be browsed without inventing a stay or rates.
+      if (!value.checkIn && !value.checkOut) return;
       const parsed = hotelSearchFormSchema.safeParse(value);
       if (!parsed.success) {
         for (const issue of parsed.error.issues)

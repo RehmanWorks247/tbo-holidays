@@ -5,7 +5,14 @@ import { DomainError } from '../../common/errors/domain-error';
 import type { Environment } from '../../config/environment';
 import { tboStatusSchema } from './dto/tbo.schemas';
 
-const readOperations = ['Search', 'PreBook', 'HotelDetails', 'TBOHotelCodeList'] as const;
+const readOperations = [
+  'Search',
+  'PreBook',
+  'HotelDetails',
+  'TBOHotelCodeList',
+  'CountryList',
+  'CityList',
+] as const;
 
 export type TboReadOperation = (typeof readOperations)[number];
 
@@ -72,7 +79,11 @@ export class TboClient {
   constructor(private readonly config: ConfigService<Environment, true>) {}
 
   /** Only side-effect-free operations are allowed here, regardless of HTTP verb. */
-  async read(operation: TboReadOperation, body: Record<string, unknown>): Promise<unknown> {
+  async read(
+    operation: TboReadOperation,
+    body: Record<string, unknown>,
+    deadline?: number,
+  ): Promise<unknown> {
     if (!readOperations.includes(operation)) {
       throw new DomainError(
         'SUPPLIER_OPERATION_NOT_ALLOWED',
@@ -97,22 +108,30 @@ export class TboClient {
     }
     const retries = this.config.get('TBO_MAX_RETRIES', { infer: true });
     for (let attempt = 0; attempt <= retries; attempt += 1) {
+      const remainingMs = deadline === undefined ? Infinity : deadline - Date.now();
+      if (remainingMs <= 0) {
+        throw new DomainError(
+          'SUPPLIER_SEARCH_TIMEOUT',
+          'The search took too long. Please try a more specific destination or hotel.',
+          504,
+        );
+      }
       const controller = new AbortController();
       const timeout = setTimeout(
         () => controller.abort(),
-        this.config.get('TBO_TIMEOUT_MS', { infer: true }),
+        Math.min(this.config.get('TBO_TIMEOUT_MS', { infer: true }), remainingMs),
       );
       let retryable = false;
       const startedAt = Date.now();
       try {
         const response = await fetch(`${baseUrl.replace(/\/$/, '')}/${operation}`, {
-          method: 'POST',
+          method: operation === 'CountryList' ? 'GET' : 'POST',
           headers: {
             Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(body),
+          ...(operation === 'CountryList' ? {} : { body: JSON.stringify(body) }),
           signal: controller.signal,
           redirect: 'error',
         });

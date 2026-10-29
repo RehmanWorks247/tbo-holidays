@@ -14,4 +14,6 @@ coverage/
 Thumbs.db
 test-results/
 playwright-report/
+tmp/node-compile-cache/
 .local/postgres/
+.codex/

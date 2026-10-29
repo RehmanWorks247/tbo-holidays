@@ -261,7 +261,7 @@ export function HotelCard({
               </>
             ) : null}
             <Link href={hotelUrl} className={styles.viewButton}>
-              {locale === 'en-US' ? 'View deal' : messages.viewRooms}
+              {!lowestRate ? 'View hotel' : locale === 'en-US' ? 'View deal' : messages.viewRooms}
               <ArrowRight size={18} aria-hidden="true" />
             </Link>
           </div>
@@ -269,7 +269,9 @@ export function HotelCard({
         <p className={styles.priceDisclaimer} lang="en">
           {hotel.source === 'mock'
             ? 'Demo price, reviews & photos · booking unavailable'
-            : 'Price confirmed at recheck'}
+            : lowestRate
+              ? 'Price confirmed at recheck'
+              : 'Choose dates and guests to check availability and prices'}
         </p>
       </div>
     </article>

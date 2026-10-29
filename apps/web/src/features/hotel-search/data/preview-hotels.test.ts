@@ -5,6 +5,7 @@ import { DEFAULT_PREVIEW_STAY, previewHref, readPreviewStay } from './preview-ho
 describe('UI preview navigation', () => {
   it('preserves multiple rooms and child ages between results, hotel and checkout', () => {
     const stay = {
+      ...DEFAULT_PREVIEW_STAY,
       destination: 'benidorm',
       checkIn: '2027-03-02',
       nights: 12,

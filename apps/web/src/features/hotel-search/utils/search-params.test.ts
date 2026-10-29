@@ -32,6 +32,19 @@ const fullSearch: HotelSearchRequest = {
 };
 
 describe('shareable search URLs', () => {
+  it('preserves a suggested hotel across navigation and uses it as part of the stay identity', () => {
+    const request: HotelSearchRequest = {
+      ...fullSearch,
+      destination: '115936',
+      hotelId: '1000001',
+    };
+    const params = new URLSearchParams(serializeHotelSearch(request));
+    expect(params.get('hotelId')).toBe('1000001');
+    expect(parseHotelSearch(params)).toEqual(request);
+    expect(searchStayOnly(request).hotelId).toBe('1000001');
+    expect(searchStayOnly(request)).not.toEqual(searchStayOnly({ ...request, hotelId: '1000002' }));
+  });
+
   it("round trips each room's occupancy without losing child ages", () => {
     const request: HotelSearchRequest = {
       destination: '123456',

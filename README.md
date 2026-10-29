@@ -85,7 +85,7 @@ No separate UI package or generic configuration package exists yet: there is one
 
 The Best Holiday Packages homepage uses the supplied company logo, a charcoal theme with a `#00A7E1` blue accent, a responsive travel layout, local destination photography, and shared shadcn-style Radix primitives. The appearance menu supports light, dark, and system themes with a persistent browser preference. Semantic colors live centrally in `apps/web/src/styles/globals.css`; feature layouts use CSS Modules. See [theming and frontend design](docs/theming.md) for customization and [image sources](docs/image-sources.md) for logo and photography credits.
 
-Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. Live search still requires a supplier city code and complete stay criteria; the backend remains authoritative for inventory, prices, and booking outcomes.
+Destination cards are editorial inspiration, not live hotel offers. Saved inspiration lasts only for the current homepage visit and is not saved to an account. The homepage hotel form accepts country, city and hotel names, with database-backed suggestions. Names ignore capitalization and accents; Turkey and Türkiye resolve to the same country. Opening `/hotels` or searching without dates browses real TBO hotel content without prices. Adding complete stay criteria requests supplier availability; the backend remains authoritative for inventory, prices, and booking outcomes.
 
 ## Frontend-only booking UI demo
 
@@ -93,8 +93,8 @@ Open `/preview/hotels` for the reference-inspired destination and guest dropdown
 hotel room selection, and extras/passengers/payment screens. This separate demo
 uses local fixtures and photos and runs with just `pnpm --filter @hotel/web dev`.
 It never creates bookings or processes payments. See [the UI preview guide](docs/ui-booking-preview.md).
-The homepage uses the same destination, date, nights and guest filters and sends
-searches directly into this demo flow.
+The homepage hotel tab uses the live search form. The separate hotel-plus-flight
+tab is explicitly labelled as a demo and continues to use preview inventory.
 
 ## Configuration and integration boundaries
 
@@ -109,33 +109,76 @@ external provider screens follow the language available from those providers. Se
 
 Backend settings live in root `.env`; Next.js settings live in `apps/web/.env.local`. Both are ignored by Git. The two `.env.example` files document supported variables.
 
+On this Windows checkout, run `.\Start-HotelApp.ps1` from a normal,
+**non-Administrator PowerShell** to finish local setup. The launcher uses
+[localhost:3001](http://localhost:3001) for this frontend and
+[localhost:4001/api/v1](http://localhost:4001/api/v1/health/ready) for its API,
+leaving port 3000 available for LedgerBook. It sets the matching frontend API URL
+and API CORS origin for its child processes without changing your environment
+files. Use `-WebPort 3002 -ApiPort 4002` to choose other ports. Both application
+listeners bind to loopback, and occupied ports fail explicitly.
+
+The launcher checks local dependencies, builds the API, applies application
+migrations, then starts the API and frontend. Add `-VerifyIntegrations` to also
+apply dedicated test migrations, run integration tests and supplier read-schema
+verification, and synchronize destinations when supplier reads are configured.
+Add `-EnableTboReads` to verify the supplied account, synchronize its directory,
+and enable hotel reads for the launched processes only. Verification must succeed
+before reads are enabled; `.env` and booking/payment gates remain unchanged.
+Stop the existing API and frontend, then run in normal PowerShell:
+
+```powershell
+.\Start-HotelApp.ps1 -EnableTboReads
+```
+
+Then open [localhost:3001/hotels](http://localhost:3001/hotels). Next.js permits
+one development process per checkout even when ports differ. The launcher reuses
+the generated Prisma client when its schema and version already match.
+An unfiltered browse imports every supplier country and city in the background,
+with paginated results and visible progress. A country search narrows that import
+to the selected country. Complete worldwide loading can take time; existing
+supplier hotel content remains browsable during synchronization.
+Local startup does not require supplier connectivity or credentials when reads
+are disabled. It stops on failed checks, never resets a database, and preserves
+the configured supplier read gate. It makes no administrator or Windows
+security-policy changes. A `WSAEACCES/10013` socket error means the command runner
+denies local network access; run the launcher in an ordinary PowerShell outside
+that runner. Changing HTTP, CORS, or browser certificate settings cannot fix that
+process restriction. Docker Desktop must be able to start for Redis.
+PostgreSQL refuses elevated execution; the launcher checks this before setup.
+Setup stages are recorded in `test-results/local-run-*/setup-status.log` so a
+failed run can be diagnosed even before the application processes start.
+
 - **Clerk:** set the backend verification secret (or JWT public key), frontend publishable key and frontend server secret. Set explicit authorized frontend origins. Internal users are provisioned after session verification. Admin rights come from the database role, never editable profile fields.
 - **TBO:** hotel search, hotel details and PreBook price rechecks implement the supplied JSON v2.1 guide, documented in the [TBO API reference](apps/api/src/modules/tbo/API_REFERENCE.md) and [backend agent guide](apps/api/AGENTS.md). The backend validates supplier identities/currency, preserves cancellation policies and rate terms, and enforces minimum selling prices. Reads remain disabled by default; synthetic fixtures do not replace account sandbox verification. Supply your assigned HTTPS base URL and credentials, and read [the integration notes](apps/api/src/modules/tbo/INTEGRATION.md) before enabling `TBO_READS_ENABLED`. Customer-facing presentation of the new terms is still required before sales. Supplier booking, lookup and cancellation remain explicitly disabled.
 - **Payments:** `PAYMENT_PROVIDER=disabled` is the only shipped adapter. Add a gateway behind `PaymentProvider`, implement raw-body webhook verification, lookup and refund handling, and exercise the integration tests before enabling checkout. No payment credentials are invented.
 - **Jobs:** `JOBS_ENABLED=false` by default. Enabling it starts the durable outbox publisher and BullMQ worker. Notifications, payment reconciliation and refund handlers currently report configuration-required errors, preserving pending work for intervention.
 - **Prices:** the backend computes minor-unit totals and stores immutable quotes and booking snapshots. Currency conversion is not implemented. The six accepted currencies currently share two decimal places.
 
-Live destination search accepts the supplier's **city code**. Catalogue synchronization/autocomplete is an explicit extension point. The preview instead offers named destination choices from its backend inventory. The date-range picker checks dates and maximum stay; live inventory always comes from the supplier.
+Live search resolves names through an indexed PostgreSQL TBO catalogue, with debounced country/city/hotel suggestions. The public catalogue endpoint supports paginated browsing without dates, guest nationality or invented rates. Country browsing warms its supplier cities with bounded concurrency; the UI polls while synchronization is pending and reports supplier failures. Country/city content refreshes separately from availability. Static hotel content is cached for 24 hours by default, suggestions for five minutes, and complete priced availability for 30 seconds. Filters and pagination reuse the same rate references without extending their expiry. See [live hotel search](docs/live-hotel-search.md) for synchronization, configuration and verification. The preview retains its separate fictional inventory.
+
+The supplied staging credentials are configured only in the ignored backend environment. Verification attempts on 28 and 29 October 2026 were blocked by this execution environment's DNS restrictions (`ENOTFOUND` for `api.tbotechnology.in`); real response shapes, account currency and pricing semantics remain unverified. Reads remain gated until the documented verification succeeds. `pnpm --filter @hotel/api tbo:verify` checks the account's country/city catalogue, hotel content, availability and PreBook schemas using only safe reads, and prints allowlisted counts/statuses. It does not enable sales or modify the running app's configuration.
 
 ## Commands
 
-| Command                             | Purpose                                                           |
-| ----------------------------------- | ----------------------------------------------------------------- |
-| `pnpm dev`                          | Generate Prisma and shared contracts, then run web and API        |
-| `pnpm dev:mock`                     | Run web plus read-only hotel API backed by seeded PostgreSQL      |
-| `pnpm build`                        | Build shared contracts, API and web                               |
-| `pnpm lint` / `pnpm lint:fix`       | Check/fix ESLint rules and import order                           |
-| `pnpm typecheck`                    | Validate strict application and contract types                    |
-| `pnpm test`                         | Run meaningful unit/contract/frontend tests without live services |
-| `pnpm test:integration`             | Run transactional PostgreSQL tests on `TEST_DATABASE_URL`         |
-| `pnpm format` / `pnpm format:check` | Write/check formatting                                            |
-| `pnpm db:generate`                  | Regenerate Prisma Client                                          |
-| `pnpm db:migrate`                   | Create a development migration after schema edits                 |
-| `pnpm db:deploy`                    | Apply checked-in migrations                                       |
-| `pnpm db:prepare:mock`              | Generate clients, build contracts, migrate and seed local preview |
-| `pnpm db:seed:mock`                 | Repeat the local preview seed without duplicating records         |
-| `pnpm db:studio`                    | Open Prisma Studio                                                |
-| `pnpm infra:up` / `pnpm infra:down` | Start/stop local infrastructure; preserve data volumes            |
+| Command                             | Purpose                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                          | Generate Prisma and shared contracts, then run web and API                                                                          |
+| `pnpm dev:mock`                     | Run web plus read-only hotel API backed by seeded PostgreSQL                                                                        |
+| `pnpm build`                        | Build shared contracts, API and web                                                                                                 |
+| `pnpm lint` / `pnpm lint:fix`       | Check/fix ESLint rules and import order                                                                                             |
+| `pnpm typecheck`                    | Validate strict application and contract types                                                                                      |
+| `pnpm test`                         | Run meaningful unit/contract/frontend tests without live services                                                                   |
+| `pnpm test:integration`             | Run transactional PostgreSQL tests on `TEST_DATABASE_URL`                                                                           |
+| `pnpm test:e2e`                     | Check real hotel browsing/search in an installed browser; see [setup](docs/live-hotel-search.md#repeatable-live-browser-acceptance) |
+| `pnpm format` / `pnpm format:check` | Write/check formatting                                                                                                              |
+| `pnpm db:generate`                  | Regenerate Prisma Client                                                                                                            |
+| `pnpm db:migrate`                   | Create a development migration after schema edits                                                                                   |
+| `pnpm db:deploy`                    | Apply checked-in migrations                                                                                                         |
+| `pnpm db:prepare:mock`              | Generate clients, build contracts, migrate and seed local preview                                                                   |
+| `pnpm db:seed:mock`                 | Repeat the local preview seed without duplicating records                                                                           |
+| `pnpm db:studio`                    | Open Prisma Studio                                                                                                                  |
+| `pnpm infra:up` / `pnpm infra:down` | Start/stop local infrastructure; preserve data volumes                                                                              |
 
 For integration tests, the Compose initialization creates a separate `hotel_platform_test` database. Apply migrations to it and run:
 

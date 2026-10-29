@@ -7,13 +7,34 @@ physical PDF page numbers, and ambiguities requiring account-specific verificati
 
 ## Current implementation
 
-The v2.1 read adapter implements `Search`, `PreBook`, `HotelDetails`, and
-`TBOHotelCodeList` behind `HotelSupplier`. `TBO_READS_ENABLED=false` remains the
+The v2.1 read adapter implements `Search`, `PreBook`, `HotelDetails`,
+`TBOHotelCodeList`, `CountryList` (GET), and `CityList` (POST). Availability and
+details remain behind `HotelSupplier`; the TBO catalogue supplies normalized
+public destination/hotel suggestions. `TBO_READS_ENABLED=false` remains the
 default. Synthetic contract fixtures exercise these reads; no account sandbox
 verification or supplier certification has been completed, and no inventory is
 fabricated when the integration is disabled.
 
-- Search resolves a numeric city code through the detailed city catalog, then
+Country, city and imported hotel names now resolve with case/accent normalization.
+Country suggestions use `country:XX`; all supplier country names are indexed while
+city directories outside the configured startup markets load on country selection.
+The public hotel catalogue lists static supplier content without stay prices,
+with database pagination and explicit background-import progress/errors.
+An unfiltered browse imports every supplier country and city with no favourite
+market or hotel cap. The complete import is coalesced across requests and pages;
+fresh content is reused and additional content becomes visible as it commits.
+Country availability searches include every city and fail on the overall deadline rather
+than returning incomplete inventory as a complete search.
+
+On 29 October 2026, read verification again failed at CountryList with
+`SUPPLIER_UNAVAILABLE`; a separate DNS check returned `ENOTFOUND` for the assigned
+staging host. No live account data was verified and the ignored environment's
+read gate remains false. The Windows launcher supports `-EnableTboReads`: it
+verifies read schemas first, then enables reads only in its child processes and
+synchronizes the directory. It does not enable booking/payment mutations.
+
+- Search resolves a city chosen from the persisted destination directory through
+  its cached detailed hotel catalogue, then
   searches batches of 100 hotel codes with at most three concurrent requests.
   It sends `IsDetailedResponse: false`, `ResponseTime: 23`, `MealType: 'All'` and
   an empty `ChildrenAges` array for rooms without children. It omits the
@@ -21,6 +42,12 @@ fabricated when the integration is disabled.
   Returned hotel codes, room counts and unique booking tokens are validated.
   A profile-currency mismatch produces `SUPPLIER_CURRENCY_MISMATCH`; no currency
   conversion or relabeling occurs.
+- PostgreSQL stores normalized country/city/hotel content under an endpoint/account
+  scope with query indexes; raw supplier objects are not public models. Configured
+  countries refresh separately from suggestion requests. Hotel catalogues and
+  details refresh after `TBO_CATALOG_TTL_SECONDS` (default 24 hours). Suggestions
+  use a five-minute Redis cache. Exact hotel selections are checked against their
+  city. Complete priced availability is cached separately for 30 seconds.
 - Details uses the documented `HotelDetails` path, `Hotelcodes` and `Language:
 'EN'`, and verifies the single returned hotel's identity. It maps hotel-level
   content, named/numeric ratings, plain text and safe HTTPS images. Optional room
@@ -47,11 +74,14 @@ fabricated when the integration is disabled.
   fulfillment rejects changed terms or a floor above the accepted total before
   supplier dispatch.
 
-The HTTP client only permits the four reads, rejects redirects, and uses safe
+The HTTP client only permits these six reads, rejects redirects, and uses safe
 domain errors without supplier response text. Search no-availability, PreBook
 expired/unavailable rates and account errors have distinct handling. Bounded
 retries cover transient HTTP/network failures and body-level throttling. The base
 URL must use HTTPS without embedded credentials, a query string or fragment.
+`TBO_SEARCH_TIMEOUT_MS` bounds the availability batch sequence; failure of any
+batch rejects the complete search. Cache hits preserve original rate expiry and
+account switching cannot reuse another account's references.
 
 `createBooking`, `getBooking`, and `cancelBooking` still return
 `SUPPLIER_INTEGRATION_REQUIRED`. Credentials and documentation do not enable them.
@@ -59,6 +89,21 @@ Implement these operations inside this module behind `HotelSupplier`, preserving
 the [durable booking workflow](../../../../../docs/booking-flow.md).
 
 ## Before enabling reads
+
+On **28 October 2026**, the supplied HTTPS staging endpoint was configured in the
+ignored backend environment. An authenticated CountryList attempt failed before
+dispatch because this execution environment could not resolve the hostname
+(`ENOTFOUND`). No real account payload, profile currency, inventory or latency was
+verified. Fixture tests do not establish verified staging data.
+
+Run `pnpm --filter @hotel/api tbo:verify` from an environment that can reach the
+assigned endpoint. This enables only the command's safe read client, validates
+country/city/catalogue/detail/availability/PreBook schemas and identities, and
+prints counts/statuses without supplier tokens. It leaves `.env` unchanged.
+`TBO_VERIFY_COUNTRY`/`TBO_VERIFY_CITY` select a different sample (defaults AE/Dubai;
+a two-night stay 30 days ahead). Success validates those samples, not sales
+certification or the account's tax-inclusive fare agreement. See
+[live search operations](../../../../../docs/live-hotel-search.md).
 
 1. Obtain the assigned HTTPS sandbox/live base URLs and credentials. The PDF's
    HTTP test URL conflicts with its HTTPS requirement; the application requires

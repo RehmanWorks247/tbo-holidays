@@ -22,6 +22,7 @@ import { useRef, useState } from 'react';
 import { PreviewEntry } from '@/components/shared/preview-shell';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useHolidayInspiration } from '@/features/hotel-search/components/holiday-inspiration-provider';
+import { HotelSearchForm } from '@/features/hotel-search/components/hotel-search-form';
 import { PreviewSearchForm } from '@/features/hotel-search/components/preview-search-form';
 import { usePageMessages } from '@/providers/use-page-messages';
 
@@ -90,7 +91,7 @@ export function HolidayHome() {
             onClick={() => setProduct('hotel-flights')}
             lang="en"
           >
-            <Plane size={19} aria-hidden="true" /> hotel+flights
+            <Plane size={19} aria-hidden="true" /> hotel+flights demo
           </button>
           <a href="#holiday-inspiration">
             <Sparkles size={18} aria-hidden="true" /> {copy.search.inspire}{' '}
@@ -99,7 +100,7 @@ export function HolidayHome() {
           <p>{copy.search.tagline}</p>
         </div>
         <div id="home-hotel-search">
-          <PreviewSearchForm product={product} />
+          {product === 'hotel' ? <HotelSearchForm /> : <PreviewSearchForm product={product} />}
         </div>
         <PreviewEntry />
       </section>

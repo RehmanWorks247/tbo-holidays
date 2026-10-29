@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   debounced: { request: null as MockHotelSearchRequest | null, settling: false },
   source: 'mock' as 'mock' | 'live' | undefined,
   initialSearch: null as MockHotelSearchRequest | null,
+  catalogSearch: null as MockHotelSearchRequest | null,
   search: {
     data: undefined as HotelSearchResponse | undefined,
     error: null as Error | null,
@@ -63,6 +64,12 @@ vi.mock('./hotel-search-form', () => ({
   HotelSearchForm: ({ initialSearch }: { initialSearch: MockHotelSearchRequest | null }) => {
     state.initialSearch = initialSearch;
     return <form aria-label="Search hotels" />;
+  },
+}));
+vi.mock('./hotel-catalog', () => ({
+  HotelCatalog: ({ search }: { search: MockHotelSearchRequest }) => {
+    state.catalogSearch = search;
+    return <section aria-label="Hotel catalogue" />;
   },
 }));
 vi.mock('./hotel-filters', () => ({
@@ -125,6 +132,7 @@ beforeEach(() => {
   state.debounced = { request, settling: false };
   state.search = { data: response, error: null, isFetching: false, refetch: vi.fn() };
   state.filters = null;
+  state.catalogSearch = null;
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -274,22 +282,51 @@ describe('empty mock hotel browsing', () => {
   });
 
   it.each(['live', undefined] as const)(
-    'does not use empty search browsing before confirmed mock mode: %s',
+    'browses the real catalogue without using preview rates when mode is %s',
     (source) => {
       state.source = source;
       state.params = new URLSearchParams();
       const markup = render();
       expect(markup).not.toContain('Previous search hotel');
-      expect(state.initialSearch).toBeNull();
-      if (!source) expect(markup).toContain('Loading destinations');
+      expect(state.initialSearch).toEqual({ currency: 'USD' });
+      expect(state.catalogSearch).toEqual({ currency: 'USD' });
+      expect(markup).toContain('Hotel catalogue');
     },
   );
+
+  it('browses a typed country without dates and preserves it in the search form', () => {
+    state.source = 'live';
+    state.params = new URLSearchParams('destination=tUrKeY');
+    const markup = render();
+    expect(state.catalogSearch).toEqual({ destination: 'tUrKeY', currency: 'USD' });
+    expect(state.initialSearch).toEqual(state.catalogSearch);
+    expect(markup).not.toContain('Previous search hotel');
+    expect(markup).not.toContain('incomplete or invalid');
+  });
+
+  it('routes currency and default guests without a location or stay to unrestricted live browsing', () => {
+    state.source = 'live';
+    state.params = new URLSearchParams({
+      currency: 'USD',
+      rooms: JSON.stringify([{ adults: 2, childrenAges: [] }]),
+    });
+    const markup = render();
+    expect(state.catalogSearch).toEqual({
+      currency: 'USD',
+      rooms: [{ adults: 2, childrenAges: [] }],
+    });
+    expect(state.initialSearch).toEqual(state.catalogSearch);
+    expect(markup).toContain('Hotel catalogue');
+    expect(markup).not.toContain('Previous search hotel');
+    expect(markup).not.toContain('incomplete or invalid');
+  });
 });
 
 describe('hotel results retain only safe content during query transitions', () => {
   it.each([
     { currency: 'EUR' as const },
     { destination: 'london' },
+    { hotelId: '1000001' },
     { checkIn: '2030-07-10', checkOut: '2030-07-17' },
     { nationality: 'US' },
     { rooms: [{ adults: 1, childrenAges: [9] }] },

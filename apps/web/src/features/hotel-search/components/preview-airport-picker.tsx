@@ -10,7 +10,7 @@ import styles from './preview-search-form.module.css';
 
 type Airport = (typeof previewAirports)[number];
 
-export function PreviewAirportPicker({ value, onChange }: { value: string; onChange: (airport: string) => void }) {
+export function PreviewAirportPicker({ value, onChange }: { value: Airport['id']; onChange: (airport: Airport['id']) => void }) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);

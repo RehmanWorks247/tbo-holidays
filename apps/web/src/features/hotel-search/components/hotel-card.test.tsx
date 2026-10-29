@@ -41,6 +41,19 @@ const render = (search: MockHotelSearchRequest, preview?: HotelPreviewStay, inve
   );
 
 describe('hotel card sample stays', () => {
+  it('shows real catalogue content without implying a rate or available room exists', () => {
+    const html = render({ destination: 'Turkey', currency: 'GBP' }, undefined, {
+      ...result,
+      hotel: { ...result.hotel, source: 'live' },
+      rates: [],
+    });
+    expect(html).toContain('Palm House');
+    expect(html).toContain('View hotel');
+    expect(html).toContain('Choose dates and guests to check availability and prices');
+    expect(html).not.toContain('Price confirmed at recheck');
+    expect(html).not.toContain('110.00');
+    expect(html).not.toContain('Sample');
+  });
   it('shows backend sample dates and guests without adding them to the details URL', () => {
     const html = render({ currency: 'GBP', filters: { starRatings: [5] } }, previewStay);
     expect(html).toContain('Sample stay: 1 Jul 2030');

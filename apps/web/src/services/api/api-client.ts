@@ -25,6 +25,7 @@ type RequestOptions = {
   body?: unknown;
   token?: string;
   signal?: AbortSignal;
+  timeoutMs?: number;
 };
 
 export async function apiRequest<T>(
@@ -35,7 +36,7 @@ export async function apiRequest<T>(
   const headers = new Headers({ Accept: 'application/json' });
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.token) headers.set('Authorization', `Bearer ${options.token}`);
-  const timeout = AbortSignal.timeout(20_000);
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 20_000);
   let response: Response;
   try {
     response = await fetch(`${publicEnvironment.apiUrl.replace(/\/$/, '')}${path}`, {

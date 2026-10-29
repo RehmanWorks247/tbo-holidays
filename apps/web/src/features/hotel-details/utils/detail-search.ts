@@ -13,7 +13,9 @@ export function hotelDetailsSearch(
     nationality: request.nationality,
     rooms: request.rooms,
     currency: request.currency,
-    filters: { name: hotel.name.slice(0, 100) },
+    ...(hotel.source === 'mock'
+      ? { filters: { name: hotel.name.slice(0, 100) } }
+      : { hotelId: hotel.id }),
     page: 1,
     pageSize: 50,
   };

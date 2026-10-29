@@ -36,7 +36,10 @@ export function browseHotelResults(
     if (name && !hotel.name.toLocaleLowerCase('en').includes(name)) return [];
     if (filters.starRatings?.length && !filters.starRatings.includes(hotel.starRating ?? 0))
       return [];
-    if (filters.minReviewScore !== undefined && (hotel.reviewScore ?? 0) < filters.minReviewScore)
+    if (
+      filters.minReviewScore !== undefined &&
+      (hotel.reviewScore === undefined || hotel.reviewScore < filters.minReviewScore)
+    )
       return [];
     if (filters.facilities?.some((facility) => !hotel.facilities.includes(facility))) return [];
     if (filters.propertyTypes?.length && !filters.propertyTypes.includes(hotel.propertyType ?? ''))

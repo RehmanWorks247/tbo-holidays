@@ -24,6 +24,8 @@ const messageByCode: Record<string, ErrorMessage> = {
   GUEST_OCCUPANCY_MISMATCH: 'guestDetailsError',
   INVALID_STAY: 'invalidStay',
   UNSUPPORTED_CURRENCY: 'unsupportedCurrency',
+  SUPPLIER_CURRENCY_MISMATCH: 'unsupportedCurrency',
+  SUPPLIER_CATALOG_UNAVAILABLE: 'inventoryUnavailable',
   PAYMENT_RECONCILIATION_REQUIRED: 'paymentReview',
   SUPPLIER_RECHECK_PENDING: 'confirmationPending',
   SUPPLIER_BOOKING_PENDING: 'confirmationPending',

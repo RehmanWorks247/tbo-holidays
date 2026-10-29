@@ -7,6 +7,21 @@ const infrastructure = {
   REDIS_URL: 'redis://localhost:6379',
 };
 describe('environment validation', () => {
+  it('validates bounded catalogue refresh and availability deadlines', () => {
+    const config = validateEnvironment(infrastructure);
+    expect(config.TBO_CATALOG_COUNTRIES).toBe('SA,AE,GB,TR,ID,PK');
+    expect(config.TBO_CATALOG_TTL_SECONDS).toBe(86400);
+    expect(config.TBO_SEARCH_TIMEOUT_MS).toBe(90000);
+    expect(() =>
+      validateEnvironment({ ...infrastructure, TBO_CATALOG_COUNTRIES: 'GB,not-a-country' }),
+    ).toThrow('TBO_CATALOG_COUNTRIES');
+    expect(() => validateEnvironment({ ...infrastructure, TBO_CATALOG_TTL_SECONDS: '0' })).toThrow(
+      'TBO_CATALOG_TTL_SECONDS',
+    );
+    expect(() =>
+      validateEnvironment({ ...infrastructure, TBO_SEARCH_TIMEOUT_MS: '120001' }),
+    ).toThrow('TBO_SEARCH_TIMEOUT_MS');
+  });
   it('defaults to live and rejects production or externally active mock mode', () => {
     expect(validateEnvironment(infrastructure).HOTEL_DATA_MODE).toBe('live');
     expect(

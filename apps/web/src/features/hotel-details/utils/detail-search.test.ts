@@ -19,7 +19,7 @@ describe('hotel detail availability', () => {
     };
     expect(
       hotelDetailsSearch(request, {
-        id: 'hotel-1',
+        id: '1000001',
         name: 'Palm House',
         images: [],
         facilities: [],
@@ -31,7 +31,7 @@ describe('hotel detail availability', () => {
       nationality: request.nationality,
       currency: request.currency,
       rooms: request.rooms,
-      filters: { name: 'Palm House' },
+      hotelId: '1000001',
       page: 1,
       pageSize: 50,
     });

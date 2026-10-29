@@ -1,9 +1,13 @@
 import type { HotelSearchRequest } from '@hotel/contracts';
+import { ConfigService } from '@nestjs/config';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DomainError } from '../../common/errors/domain-error';
+import type { Environment } from '../../config/environment';
 import { CurrencyService } from '../pricing/currency.service';
 import type { TboClient } from './tbo.client';
 import { TboService } from './tbo.service';
+import type { TboCatalogService } from './tbo-catalog.service';
 
 const criteria: HotelSearchRequest = {
   destination: '12345',
@@ -27,10 +31,7 @@ function searchResult(hotels: readonly unknown[] = [hotelResult()]) {
 }
 
 function catalog(codes = ['100']) {
-  return {
-    Status: { Code: 200 },
-    Hotels: codes.map((code) => ({ HotelCode: code, HotelName: `Hotel ${code}` })),
-  };
+  return codes.map((id) => ({ id, name: `Hotel ${id}`, images: [], facilities: [] }));
 }
 
 function preBookRoom(bookingCode = 'rate-100') {
@@ -50,16 +51,28 @@ function preBookRoom(bookingCode = 'rate-100') {
   };
 }
 
-function setup() {
+function setup(settings: Partial<Environment> = {}) {
   const read = vi.fn<TboClient['read']>();
-  const service = new TboService({ read } as unknown as TboClient, new CurrencyService());
-  return { read, service };
+  const getCityHotels = vi.fn<TboCatalogService['getSearchHotels']>().mockResolvedValue(catalog());
+  const getHotelDetails = vi.fn<TboCatalogService['getHotelDetails']>();
+  const service = new TboService(
+    { read } as unknown as TboClient,
+    new CurrencyService(),
+    { getSearchHotels: getCityHotels, getHotelDetails } as unknown as TboCatalogService,
+    new ConfigService<Environment, true>({
+      TBO_BASE_URL: 'https://supplier.example.test/HotelAPI/',
+      TBO_USERNAME: 'test-account',
+      TBO_SEARCH_TIMEOUT_MS: 90000,
+      ...settings,
+    }),
+  );
+  return { read, service, getCityHotels, getHotelDetails };
 }
 
 describe('TBO read service', () => {
   it('builds the documented Search request from nationality and each room occupancy', async () => {
-    const { read, service } = setup();
-    read.mockResolvedValueOnce(catalog()).mockResolvedValueOnce({ Status: { Code: 201 } });
+    const { read, service, getCityHotels } = setup();
+    read.mockResolvedValueOnce({ Status: { Code: 201 } });
     const input = {
       ...criteria,
       rooms: [
@@ -70,33 +83,34 @@ describe('TBO read service', () => {
 
     await expect(service.searchHotels(input)).resolves.toEqual([]);
 
-    expect(read).toHaveBeenNthCalledWith(1, 'TBOHotelCodeList', {
-      CityCode: '12345',
-      IsDetailedResponse: true,
-    });
-    expect(read).toHaveBeenNthCalledWith(2, 'Search', {
-      CheckIn: '2100-01-01',
-      CheckOut: '2100-01-03',
-      HotelCodes: '100',
-      GuestNationality: 'PK',
-      PaxRooms: [
-        { Adults: 2, Children: 0, ChildrenAges: [] },
-        { Adults: 1, Children: 1, ChildrenAges: [7] },
-      ],
-      ResponseTime: 23,
-      IsDetailedResponse: false,
-      Filters: { MealType: 'All' },
-    });
+    expect(getCityHotels).toHaveBeenCalledExactlyOnceWith('12345', undefined, expect.any(Number));
+    expect(read).toHaveBeenCalledExactlyOnceWith(
+      'Search',
+      {
+        CheckIn: '2100-01-01',
+        CheckOut: '2100-01-03',
+        HotelCodes: '100',
+        GuestNationality: 'PK',
+        PaxRooms: [
+          { Adults: 2, Children: 0, ChildrenAges: [] },
+          { Adults: 1, Children: 1, ChildrenAges: [7] },
+        ],
+        ResponseTime: 23,
+        IsDetailedResponse: false,
+        Filters: { MealType: 'All' },
+      },
+      expect.any(Number),
+    );
   });
 
   it('batches 100 codes with at most three concurrent reads and retains available batches', async () => {
-    const { read, service } = setup();
+    const { read, service, getCityHotels } = setup();
     const codes = Array.from({ length: 351 }, (_, index) => String(index + 1));
+    getCityHotels.mockResolvedValue(catalog(codes));
     const pending: (() => void)[] = [];
     let active = 0;
     let maximumActive = 0;
-    read.mockImplementation(async (operation, body) => {
-      if (operation === 'TBOHotelCodeList') return catalog(codes);
+    read.mockImplementation(async (_operation, body) => {
       const batch = String(body.HotelCodes).split(',');
       active += 1;
       maximumActive = Math.max(maximumActive, active);
@@ -121,21 +135,23 @@ describe('TBO read service', () => {
   });
 
   it('does not issue Search for an empty catalog', async () => {
-    const { read, service } = setup();
-    read.mockResolvedValue(catalog([]));
+    const { read, service, getCityHotels } = setup();
+    getCityHotels.mockResolvedValue(catalog([]));
     await expect(service.searchHotels(criteria)).resolves.toEqual([]);
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).not.toHaveBeenCalled();
   });
 
-  it.each(['Dubai', '1,2', '1.2', '-1', '100/Book'])(
-    'rejects non-numeric city code %s before supplier access',
+  it.each(['Dubai', 'Turkey', 'country:TR', 'istanbul'])(
+    'resolves the location name %s through the supplier catalogue',
     async (destination) => {
-      const { read, service } = setup();
-      await expect(service.searchHotels({ ...criteria, destination })).rejects.toMatchObject({
-        code: 'INVALID_DESTINATION',
-        status: 400,
-      });
-      expect(read).not.toHaveBeenCalled();
+      const { read, service, getCityHotels } = setup();
+      read.mockResolvedValueOnce({ Status: { Code: 201 } });
+      await expect(service.searchHotels({ ...criteria, destination })).resolves.toEqual([]);
+      expect(getCityHotels).toHaveBeenCalledExactlyOnceWith(
+        destination,
+        undefined,
+        expect.any(Number),
+      );
     },
   );
 
@@ -150,10 +166,10 @@ describe('TBO read service', () => {
   });
 
   it('rejects a hotel returned for a different batch even when it belongs to the catalog', async () => {
-    const { read, service } = setup();
+    const { read, service, getCityHotels } = setup();
     const codes = Array.from({ length: 101 }, (_, index) => String(index + 1));
-    read.mockImplementation(async (operation, body) => {
-      if (operation === 'TBOHotelCodeList') return catalog(codes);
+    getCityHotels.mockResolvedValue(catalog(codes));
+    read.mockImplementation(async (_operation, body) => {
       return String(body.HotelCodes).startsWith('1,')
         ? searchResult([hotelResult('101')])
         : { Status: { Code: 201 } };
@@ -165,12 +181,12 @@ describe('TBO read service', () => {
   });
 
   it('rejects duplicate catalog identities before availability requests', async () => {
-    const { read, service } = setup();
-    read.mockResolvedValue(catalog(['100', '100']));
+    const { read, service, getCityHotels } = setup();
+    getCityHotels.mockResolvedValue(catalog(['100', '100']));
     await expect(service.searchHotels(criteria)).rejects.toMatchObject({
       code: 'INVALID_SUPPLIER_RESPONSE',
     });
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -181,18 +197,19 @@ describe('TBO read service', () => {
       hotels: [hotelResult('100', [room()]), hotelResult('101', [room()])],
     },
   ])('rejects duplicate $label', async ({ hotels }) => {
-    const { read, service } = setup();
-    read.mockResolvedValueOnce(catalog(['100', '101'])).mockResolvedValueOnce(searchResult(hotels));
+    const { read, service, getCityHotels } = setup();
+    getCityHotels.mockResolvedValue(catalog(['100', '101']));
+    read.mockResolvedValueOnce(searchResult(hotels));
     await expect(service.searchHotels(criteria)).rejects.toMatchObject({
       code: 'INVALID_SUPPLIER_RESPONSE',
     });
   });
 
   it('rejects a supplier token repeated across separate code batches', async () => {
-    const { read, service } = setup();
+    const { read, service, getCityHotels } = setup();
     const codes = Array.from({ length: 101 }, (_, index) => String(index + 1));
-    read.mockImplementation(async (operation, body) => {
-      if (operation === 'TBOHotelCodeList') return catalog(codes);
+    getCityHotels.mockResolvedValue(catalog(codes));
+    read.mockImplementation(async (_operation, body) => {
       const firstCode = String(body.HotelCodes).split(',')[0];
       return searchResult([hotelResult(firstCode, [room('same-unit')])]);
     });
@@ -262,47 +279,56 @@ describe('TBO read service', () => {
     });
   });
 
-  it('requests a single hotel using exact documented casing without optional room content', async () => {
-    const { read, service } = setup();
-    read.mockResolvedValue({
-      Status: { Code: 200 },
-      HotelDetails: [{ HotelCode: '100', HotelName: 'Hotel 100' }],
-    });
+  it('delegates hotel content to the persistent catalogue cache', async () => {
+    const { read, service, getHotelDetails } = setup();
+    getHotelDetails.mockResolvedValue({ id: '100', name: 'Hotel 100', images: [], facilities: [] });
     await expect(service.getHotelDetails('100')).resolves.toMatchObject({
       id: '100',
       name: 'Hotel 100',
     });
-    expect(read).toHaveBeenCalledExactlyOnceWith('HotelDetails', {
-      Hotelcodes: '100',
-      Language: 'EN',
-    });
+    expect(getHotelDetails).toHaveBeenCalledExactlyOnceWith('100');
+    expect(read).not.toHaveBeenCalled();
   });
 
-  it('returns not available for an explicitly empty hotel-details result', async () => {
-    const { read, service } = setup();
-    read.mockResolvedValue({ Status: { Code: 200 }, HotelDetails: [] });
+  it('preserves the catalogue unavailable error without fabricating content', async () => {
+    const { service, getHotelDetails } = setup();
+    getHotelDetails.mockRejectedValue(new DomainError('HOTEL_NOT_AVAILABLE', 'Unavailable', 404));
     await expect(service.getHotelDetails('100')).rejects.toMatchObject({
       code: 'HOTEL_NOT_AVAILABLE',
       status: 404,
     });
   });
 
-  it.each([
-    { label: 'wrong hotel', details: [{ HotelCode: '101', HotelName: 'Other' }] },
-    {
-      label: 'multiple hotels',
-      details: [
-        { HotelCode: '100', HotelName: 'Hotel 100' },
-        { HotelCode: '101', HotelName: 'Other' },
-      ],
-    },
-    { label: 'missing name', details: [{ HotelCode: '100' }] },
-  ])('rejects hotel details with $label', async ({ details }) => {
+  it('searches only the selected hotel after verifying destination membership', async () => {
+    const { read, service, getCityHotels } = setup();
+    getCityHotels.mockResolvedValue(catalog(['100', '101']));
+    read.mockResolvedValue(searchResult([hotelResult('101')]));
+    const results = await service.searchHotels({ ...criteria, hotelId: '101' });
+    expect(results.map((entry) => entry.hotel.id)).toEqual(['101']);
+    expect(read).toHaveBeenCalledExactlyOnceWith(
+      'Search',
+      expect.objectContaining({ HotelCodes: '101' }),
+      expect.any(Number),
+    );
+  });
+
+  it('rejects a selected hotel outside the destination without requesting availability', async () => {
     const { read, service } = setup();
-    read.mockResolvedValue({ Status: { Code: 200 }, HotelDetails: details });
-    await expect(service.getHotelDetails('100')).rejects.toMatchObject({
-      code: 'INVALID_SUPPLIER_RESPONSE',
+    await expect(service.searchHotels({ ...criteria, hotelId: '999' })).rejects.toMatchObject({
+      code: 'HOTEL_NOT_AVAILABLE',
+      status: 404,
     });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('separates inventory cache scopes by supplier endpoint and account without exposing them', () => {
+    const scope = setup().service.cacheScope;
+    expect(scope).toMatch(/^[a-f0-9]{64}$/);
+    expect(scope).toBe(setup().service.cacheScope);
+    expect(scope).not.toBe(setup({ TBO_USERNAME: 'other-account' }).service.cacheScope);
+    expect(scope).not.toBe(
+      setup({ TBO_BASE_URL: 'https://live.example.test/HotelAPI/' }).service.cacheScope,
+    );
   });
 
   it('validates hotel codes before requesting details or availability', async () => {

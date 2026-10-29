@@ -347,3 +347,54 @@ model MockRate {
   @@unique([hotelId, currency, mealType])
   @@index([hotelId, currency, sortOrder])
 }
+
+// Real supplier static content only. Availability and prices are never persisted
+// in this catalogue. Public DTOs are validated independently of these records.
+model TboCountry {
+  scope                   String           @db.VarChar(64)
+  code                    String           @db.VarChar(2)
+  name                    String           @db.VarChar(150)
+  destinationsRefreshedAt DateTime?
+  updatedAt               DateTime         @updatedAt
+  destinations            TboDestination[]
+
+  @@id([scope, code])
+}
+
+model TboDestination {
+  scope             String     @db.VarChar(64)
+  id                String     @db.VarChar(16)
+  name              String     @db.VarChar(250)
+  countryCode       String     @db.VarChar(2)
+  searchText        String
+  active            Boolean    @default(true)
+  hotelsRefreshedAt DateTime?
+  updatedAt         DateTime   @updatedAt
+  country           TboCountry @relation(fields: [scope, countryCode], references: [scope, code], onDelete: Restrict)
+  hotels            TboHotel[]
+
+  @@id([scope, id])
+  @@index([scope, countryCode, active])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([searchText(ops: raw("text_pattern_ops"))], map: "TboDestination_searchText_prefix_idx")
+}
+
+model TboHotel {
+  scope              String         @db.VarChar(64)
+  id                 String         @db.VarChar(16)
+  destinationId      String         @db.VarChar(16)
+  name               String         @db.VarChar(500)
+  searchText         String
+  // Only normalized Hotel fields; never supplier wire payloads or rate tokens.
+  content            Json
+  active             Boolean        @default(true)
+  refreshedAt        DateTime
+  detailsRefreshedAt DateTime?
+  updatedAt          DateTime       @updatedAt
+  destination        TboDestination @relation(fields: [scope, destinationId], references: [scope, id], onDelete: Restrict)
+
+  @@id([scope, id])
+  @@index([scope, destinationId, active])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([searchText(ops: raw("text_pattern_ops"))], map: "TboHotel_searchText_prefix_idx")
+}

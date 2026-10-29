@@ -48,6 +48,11 @@ export type HotelSort = z.infer<typeof hotelSortSchema>;
 export const hotelSearchRequestSchema = z
   .object({
     destination: z.string().trim().min(1).max(100),
+    /** An exact hotel selected from suggestions; destination remains its city. */
+    hotelId: z
+      .string()
+      .regex(/^\d{1,16}$/)
+      .optional(),
     checkIn: dateOnlySchema,
     checkOut: dateOnlySchema,
     nationality: z.string().regex(/^[A-Z]{2}$/),
@@ -55,7 +60,7 @@ export const hotelSearchRequestSchema = z
     currency: currencySchema.default('USD'),
     filters: hotelResultsFiltersSchema.optional(),
     sort: hotelSortSchema.optional(),
-    page: z.number().int().min(1).max(10_000).optional(),
+    page: z.number().int().min(1).max(1_000_000).optional(),
     pageSize: z.number().int().min(1).max(50).optional(),
   })
   .strict()
@@ -260,6 +265,47 @@ export const hotelDestinationsResponseSchema = z.object({
   ),
 });
 export type HotelDestinationsResponse = z.infer<typeof hotelDestinationsResponseSchema>;
+export const hotelSuggestionsQuerySchema = z
+  .object({
+    query: z.string().trim().max(80).default(''),
+    limit: z.coerce.number().int().min(1).max(12).default(10),
+  })
+  .strict();
+export type HotelSuggestionsQuery = z.infer<typeof hotelSuggestionsQuerySchema>;
+export const hotelSearchSuggestionSchema = z.object({
+  id: z.string(),
+  type: z.enum(['country', 'destination', 'hotel']),
+  name: z.string(),
+  destinationId: z.string(),
+  destinationName: z.string(),
+  countryCode: z.string().regex(/^[A-Z]{2}$/),
+  countryName: z.string().optional(),
+});
+export type HotelSearchSuggestion = z.infer<typeof hotelSearchSuggestionSchema>;
+export const hotelSearchSuggestionsResponseSchema = z.object({
+  source: z.enum(['mock', 'live']),
+  suggestions: z.array(hotelSearchSuggestionSchema),
+});
+export type HotelSearchSuggestionsResponse = z.infer<typeof hotelSearchSuggestionsResponseSchema>;
+/** Static supplier content only; a stay search is required for prices and availability. */
+export const hotelCatalogQuerySchema = z
+  .object({
+    query: z.string().trim().max(100).default(''),
+    page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+export type HotelCatalogQuery = z.infer<typeof hotelCatalogQuerySchema>;
+export const hotelCatalogResponseSchema = z.object({
+  source: z.literal('live'),
+  hotels: z.array(hotelSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalPages: z.number().int().nonnegative(),
+  syncing: z.boolean(),
+});
+export type HotelCatalogResponse = z.infer<typeof hotelCatalogResponseSchema>;
 export const recheckRequestSchema = z.object({ rateId: z.string().min(1).max(500) }).strict();
 export type RecheckRequest = z.infer<typeof recheckRequestSchema>;
 export const quoteResponseSchema = z.object({

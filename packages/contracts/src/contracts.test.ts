@@ -3,12 +3,49 @@ import { describe, expect, it } from 'vitest';
 import { createBookingRequestSchema } from './bookings';
 import {
   cancellationPolicySchema,
+  hotelCatalogQuerySchema,
+  hotelCatalogResponseSchema,
   hotelSearchRequestSchema,
+  hotelSearchSuggestionSchema,
   mockHotelSearchRequestSchema,
   validateStay,
 } from './hotels';
 
 describe('public input contracts', () => {
+  it('allows a bounded real catalogue browse without claiming stay availability or accepting browser prices', () => {
+    expect(hotelCatalogQuerySchema.parse({ query: '  tUrKeY ' })).toEqual({
+      query: 'tUrKeY',
+      page: 1,
+      pageSize: 20,
+    });
+    expect(hotelCatalogQuerySchema.safeParse({ pageSize: 51 }).success).toBe(false);
+    expect(hotelCatalogQuerySchema.parse({ page: 10_001 }).page).toBe(10_001);
+    expect(mockHotelSearchRequestSchema.parse({ page: 10_001 }).page).toBe(10_001);
+    expect(hotelCatalogQuerySchema.safeParse({ page: 1_000_001 }).success).toBe(false);
+    expect(hotelCatalogQuerySchema.safeParse({ totalAmount: 1 }).success).toBe(false);
+    expect(
+      hotelCatalogResponseSchema.safeParse({
+        source: 'live',
+        hotels: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+        syncing: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      hotelSearchSuggestionSchema.safeParse({
+        id: 'country:TR',
+        type: 'country',
+        name: 'Turkey',
+        destinationId: 'country:TR',
+        destinationName: 'Turkey',
+        countryCode: 'TR',
+      }).success,
+    ).toBe(true);
+  });
+
   it('allows omitted mock criteria without weakening live search requirements', () => {
     expect(mockHotelSearchRequestSchema.parse({})).toEqual({ currency: 'USD' });
     expect(

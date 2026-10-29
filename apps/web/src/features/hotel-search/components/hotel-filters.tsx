@@ -109,6 +109,7 @@ export function HotelFilters({
   idPrefix = 'hotel-filters',
   sampleStay = false,
   allDestinations = false,
+  source = 'live',
 }: {
   value: HotelResultsFilters;
   onChange: (filters: HotelResultsFilters) => void;
@@ -118,12 +119,31 @@ export function HotelFilters({
   idPrefix?: string;
   sampleStay?: boolean;
   allDestinations?: boolean;
+  source?: 'live' | 'mock';
 }) {
   const {
     messages: { results: messages },
     locale,
     t,
   } = usePageMessages();
+  const popularStars = [4, 5].filter(
+    (rating) =>
+      value.starRatings?.includes(rating) ||
+      facets?.starRatings.some((option) => option.value === rating && option.count > 0),
+  );
+  const popularMeal = facets?.mealTypes.find(
+    (option) => option.count > 0 && /all[\s_-]*inclusive/i.test(option.value),
+  );
+  const popularFacility = facets?.facilities.find(
+    (option) => option.count > 0 && /beach/i.test(option.value),
+  );
+  const popularReview =
+    value.minReviewScore === 8 ||
+    facets?.reviewScores.some((option) => option.value === 8 && option.count > 0);
+  const hasReviews =
+    value.minReviewScore !== undefined || facets?.reviewScores.some((option) => option.count > 0);
+  const hasPopular = popularStars.length > 0 || popularMeal || popularFacility || popularReview;
+  const hasOptions = (key: ListFilter) => Boolean(facets?.[key].length || value[key]?.length);
   const maximumBudget = Math.max(
     facets?.maxPrice ?? 500_000,
     value.maxPrice ?? 0,
@@ -198,43 +218,54 @@ export function HotelFilters({
         </button>
       </div>
       <div lang="en">
-        <Section title="Popular filters" icon={<Sparkles size={19} aria-hidden="true" />}>
-          <div className={styles.popularFilters}>
-            {[4, 5].map((rating) => (
-              <button
-                key={rating}
-                type="button"
-                aria-pressed={value.starRatings?.includes(rating) ?? false}
-                onClick={() => toggleStar(rating)}
-              >
-                {rating}-star hotel
-              </button>
-            ))}
-            <button
-              type="button"
-              aria-pressed={value.minReviewScore === 8}
-              onClick={() =>
-                onChange({ ...value, minReviewScore: value.minReviewScore === 8 ? undefined : 8 })
-              }
-            >
-              8+ guest rating
-            </button>
-            <button
-              type="button"
-              aria-pressed={value.mealTypes?.includes('All inclusive') ?? false}
-              onClick={() => toggleList('mealTypes', 'All inclusive')}
-            >
-              All inclusive
-            </button>
-            <button
-              type="button"
-              aria-pressed={value.facilities?.includes('Beachfront') ?? false}
-              onClick={() => toggleList('facilities', 'Beachfront')}
-            >
-              Beach
-            </button>
-          </div>
-        </Section>
+        {hasPopular ? (
+          <Section title="Popular filters" icon={<Sparkles size={19} aria-hidden="true" />}>
+            <div className={styles.popularFilters}>
+              {popularStars.map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  aria-pressed={value.starRatings?.includes(rating) ?? false}
+                  onClick={() => toggleStar(rating)}
+                >
+                  {rating}-star hotel
+                </button>
+              ))}
+              {popularReview ? (
+                <button
+                  type="button"
+                  aria-pressed={value.minReviewScore === 8}
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      minReviewScore: value.minReviewScore === 8 ? undefined : 8,
+                    })
+                  }
+                >
+                  8+ guest rating
+                </button>
+              ) : null}
+              {popularMeal ? (
+                <button
+                  type="button"
+                  aria-pressed={value.mealTypes?.includes(popularMeal.value) ?? false}
+                  onClick={() => toggleList('mealTypes', popularMeal.value)}
+                >
+                  {popularMeal.value}
+                </button>
+              ) : null}
+              {popularFacility ? (
+                <button
+                  type="button"
+                  aria-pressed={value.facilities?.includes(popularFacility.value) ?? false}
+                  onClick={() => toggleList('facilities', popularFacility.value)}
+                >
+                  {popularFacility.value}
+                </button>
+              ) : null}
+            </div>
+          </Section>
+        ) : null}
         <Section title="Your budget" icon={<CircleDollarSign size={19} aria-hidden="true" />}>
           <p className={styles.hint}>
             {sampleStay ? 'Sample stay total' : 'Total price for your whole stay'} ({currency})
@@ -292,9 +323,11 @@ export function HotelFilters({
             <span>{formatBudget(sliderMaximum)}</span>
           </div>
         </Section>
-        <Section title="Board basis" icon={<Utensils size={19} aria-hidden="true" />}>
-          {listOptions('mealTypes')}
-        </Section>
+        {hasOptions('mealTypes') ? (
+          <Section title="Board basis" icon={<Utensils size={19} aria-hidden="true" />}>
+            {listOptions('mealTypes')}
+          </Section>
+        ) : null}
         <Section
           title={messages.starRating}
           titleLang={locale}
@@ -319,43 +352,55 @@ export function HotelFilters({
             </FilterOption>
           ))}
         </Section>
-        <Section title="Guest rating" icon={<ThumbsUp size={19} aria-hidden="true" />}>
-          <FilterOption
-            id={`${idPrefix}-reviews-any`}
-            radio
-            name={`${idPrefix}-review`}
-            checked={value.minReviewScore === undefined}
-            onChange={() => onChange({ ...value, minReviewScore: undefined })}
-          >
-            Any guest rating
-          </FilterOption>
-          {[
-            { score: 9, label: 'Exceptional' },
-            { score: 8, label: 'Excellent' },
-            { score: 7, label: 'Very good' },
-          ].map(({ score, label }) => (
+        {hasReviews ? (
+          <Section title="Guest rating" icon={<ThumbsUp size={19} aria-hidden="true" />}>
             <FilterOption
-              key={score}
-              id={`${idPrefix}-reviews-${score}`}
+              id={`${idPrefix}-reviews-any`}
               radio
               name={`${idPrefix}-review`}
-              checked={value.minReviewScore === score}
-              onChange={() => onChange({ ...value, minReviewScore: score })}
-              count={facets?.reviewScores.find((item) => item.value === score)?.count ?? 0}
+              checked={value.minReviewScore === undefined}
+              onChange={() => onChange({ ...value, minReviewScore: undefined })}
             >
-              <span className={styles.reviewOption}>
-                <strong>{score}+</strong>
-                {label}
-              </span>
+              Any guest rating
             </FilterOption>
-          ))}
-        </Section>
-        <Section title="Hotel facilities" icon={<Waves size={19} aria-hidden="true" />}>
-          {listOptions('facilities')}
-        </Section>
-        <Section title="Property type" icon={<Building2 size={19} aria-hidden="true" />}>
-          {listOptions('propertyTypes')}
-        </Section>
+            {[
+              { score: 9, label: 'Exceptional' },
+              { score: 8, label: 'Excellent' },
+              { score: 7, label: 'Very good' },
+            ]
+              .filter(
+                ({ score }) =>
+                  value.minReviewScore === score ||
+                  facets?.reviewScores.some((option) => option.value === score && option.count > 0),
+              )
+              .map(({ score, label }) => (
+                <FilterOption
+                  key={score}
+                  id={`${idPrefix}-reviews-${score}`}
+                  radio
+                  name={`${idPrefix}-review`}
+                  checked={value.minReviewScore === score}
+                  onChange={() => onChange({ ...value, minReviewScore: score })}
+                  count={facets?.reviewScores.find((item) => item.value === score)?.count ?? 0}
+                >
+                  <span className={styles.reviewOption}>
+                    <strong>{score}+</strong>
+                    {label}
+                  </span>
+                </FilterOption>
+              ))}
+          </Section>
+        ) : null}
+        {hasOptions('facilities') ? (
+          <Section title="Hotel facilities" icon={<Waves size={19} aria-hidden="true" />}>
+            {listOptions('facilities')}
+          </Section>
+        ) : null}
+        {hasOptions('propertyTypes') ? (
+          <Section title="Property type" icon={<Building2 size={19} aria-hidden="true" />}>
+            {listOptions('propertyTypes')}
+          </Section>
+        ) : null}
         <Section title="Cancellation options" icon={<ShieldCheck size={19} aria-hidden="true" />}>
           <FilterOption
             id={`${idPrefix}-refundable`}
@@ -387,41 +432,56 @@ export function HotelFilters({
             />
           </div>
         </Section>
-        <Section title="Neighbourhood" open={false} icon={<MapPin size={19} aria-hidden="true" />}>
-          {listOptions('neighbourhoods')}
-        </Section>
-        <Section
-          title="Distance to the beach"
-          open={false}
-          icon={<Umbrella size={19} aria-hidden="true" />}
-        >
-          <FilterOption
-            id={`${idPrefix}-beach-any`}
-            radio
-            name={`${idPrefix}-beach`}
-            checked={value.maxBeachDistance === undefined}
-            onChange={() => onChange({ ...value, maxBeachDistance: undefined })}
+        {hasOptions('neighbourhoods') ? (
+          <Section
+            title="Neighbourhood"
+            open={false}
+            icon={<MapPin size={19} aria-hidden="true" />}
           >
-            Any distance
-          </FilterOption>
-          {[
-            { metres: 100, label: 'Within 100 m' },
-            { metres: 500, label: 'Within 500 m' },
-            { metres: 1000, label: 'Within 1 km' },
-            { metres: 5000, label: 'Within 5 km' },
-          ].map(({ metres, label }) => (
+            {listOptions('neighbourhoods')}
+          </Section>
+        ) : null}
+        {source === 'mock' || value.maxBeachDistance !== undefined ? (
+          <Section
+            title="Distance to the beach"
+            open={false}
+            icon={<Umbrella size={19} aria-hidden="true" />}
+          >
             <FilterOption
-              key={metres}
-              id={`${idPrefix}-beach-${metres}`}
+              id={`${idPrefix}-beach-any`}
               radio
               name={`${idPrefix}-beach`}
-              checked={value.maxBeachDistance === metres}
-              onChange={() => onChange({ ...value, maxBeachDistance: metres })}
+              checked={value.maxBeachDistance === undefined}
+              onChange={() => onChange({ ...value, maxBeachDistance: undefined })}
             >
-              {label}
+              Any distance
             </FilterOption>
-          ))}
-        </Section>
+            {source === 'mock' ? (
+              [
+                { metres: 100, label: 'Within 100 m' },
+                { metres: 500, label: 'Within 500 m' },
+                { metres: 1000, label: 'Within 1 km' },
+                { metres: 5000, label: 'Within 5 km' },
+              ].map(({ metres, label }) => (
+                <FilterOption
+                  key={metres}
+                  id={`${idPrefix}-beach-${metres}`}
+                  radio
+                  name={`${idPrefix}-beach`}
+                  checked={value.maxBeachDistance === metres}
+                  onChange={() => onChange({ ...value, maxBeachDistance: metres })}
+                >
+                  {label}
+                </FilterOption>
+              ))
+            ) : (
+              <p className={styles.hint}>
+                Beach distance is not supplied for these hotels. Clear this filter to see available
+                stays.
+              </p>
+            )}
+          </Section>
+        ) : null}
         <p className={styles.countHint}>
           Counts show hotels {allDestinations ? 'across all destinations' : 'in this destination'}{' '}
           before filters.

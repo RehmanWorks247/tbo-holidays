@@ -7,6 +7,7 @@ import type { SupplierBookingRequest } from '../hotels/hotel-supplier';
 import { CurrencyService } from '../pricing/currency.service';
 import { TboClient, type TboReadOperation } from './tbo.client';
 import { TboService } from './tbo.service';
+import type { TboCatalogService } from './tbo-catalog.service';
 
 function makeClient(enabled = true, retries = 1) {
   return new TboClient(
@@ -74,6 +75,61 @@ describe('supplier transport protection', () => {
       'https://supplier.example.test/HotelAPI/HotelDetails',
       expect.objectContaining({ method: 'POST', redirect: 'error' }),
     );
+  });
+
+  it('reads the country directory with GET and no request body', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue(Response.json({ Status: { Code: 200 }, CountryList: [] }));
+    vi.stubGlobal('fetch', request);
+    await makeClient().read('CountryList', {});
+    expect(request).toHaveBeenCalledExactlyOnceWith(
+      'https://supplier.example.test/HotelAPI/CountryList',
+      expect.objectContaining({ method: 'GET', redirect: 'error' }),
+    );
+    expect(request.mock.calls[0]?.[1]).not.toHaveProperty('body');
+  });
+
+  it('reads a country city directory with the documented POST body', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue(Response.json({ Status: { Code: 200 }, CityList: [] }));
+    vi.stubGlobal('fetch', request);
+    await makeClient().read('CityList', { CountryCode: 'SA' });
+    expect(request).toHaveBeenCalledExactlyOnceWith(
+      'https://supplier.example.test/HotelAPI/CityList',
+      expect.objectContaining({ method: 'POST', body: '{"CountryCode":"SA"}' }),
+    );
+  });
+
+  it('does not dispatch another batch when the complete search deadline has elapsed', async () => {
+    const request = vi.fn();
+    vi.stubGlobal('fetch', request);
+    await expect(makeClient().read('Search', {}, Date.now() - 1)).rejects.toMatchObject({
+      code: 'SUPPLIER_SEARCH_TIMEOUT',
+      status: 504,
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('caps an in-flight read and its retries by the complete search deadline', async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(
+      (_url: string, options: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', request);
+    const result = expect(makeClient().read('Search', {}, Date.now() + 25)).rejects.toMatchObject({
+      code: 'SUPPLIER_SEARCH_TIMEOUT',
+      status: 504,
+    });
+    await vi.runAllTimersAsync();
+    await result;
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it.each(['Book', 'Cancel', 'BookingDetail', '../Book', 'Hoteldetails'])(
@@ -265,7 +321,15 @@ describe('supplier transport protection', () => {
   it('keeps mutations disabled even when read credentials are configured', async () => {
     const request = vi.fn();
     vi.stubGlobal('fetch', request);
-    const supplier = new TboService(makeClient(), new CurrencyService());
+    const supplier = new TboService(
+      makeClient(),
+      new CurrencyService(),
+      {} as TboCatalogService,
+      new ConfigService<Environment, true>({
+        TBO_BASE_URL: 'https://supplier.example.test/HotelAPI',
+        TBO_USERNAME: 'unit-test-user',
+      }),
+    );
     await expect(supplier.createBooking({} as SupplierBookingRequest)).rejects.toMatchObject({
       code: 'SUPPLIER_INTEGRATION_REQUIRED',
     });

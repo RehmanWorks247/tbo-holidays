@@ -10,6 +10,7 @@ export function searchStayOnly(request: MockHotelSearchRequest): MockHotelSearch
 export function searchStayOnly(request: MockHotelSearchRequest): MockHotelSearchRequest {
   return {
     destination: request.destination,
+    ...(request.hotelId ? { hotelId: request.hotelId } : {}),
     checkIn: request.checkIn,
     checkOut: request.checkOut,
     nationality: request.nationality,
@@ -20,7 +21,14 @@ export function searchStayOnly(request: MockHotelSearchRequest): MockHotelSearch
 
 export function serializeHotelSearch(request: MockHotelSearchRequest): string {
   const params = new URLSearchParams();
-  for (const key of ['destination', 'checkIn', 'checkOut', 'nationality', 'currency'] as const) {
+  for (const key of [
+    'destination',
+    'hotelId',
+    'checkIn',
+    'checkOut',
+    'nationality',
+    'currency',
+  ] as const) {
     const value = request[key];
     if (value) params.set(key, value);
   }
@@ -59,6 +67,7 @@ export function parseHotelSearch(
       mode === 'mock' ? mockHotelSearchRequestSchema : hotelSearchRequestSchema
     ).safeParse({
       destination: params.get('destination') ?? undefined,
+      ...(params.get('hotelId') ? { hotelId: params.get('hotelId') } : {}),
       checkIn: params.get('checkIn') ?? undefined,
       checkOut: params.get('checkOut') ?? undefined,
       nationality: params.get('nationality') ?? undefined,

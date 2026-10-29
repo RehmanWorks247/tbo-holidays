@@ -79,8 +79,19 @@ Search responses expose application `Hotel` and `HotelRate` models. Supplier DTO
 and booking codes remain inside the API. For each rate, search creates a random
 UUID and caches the supplier reference, stay criteria and hotel identity in Redis
 for 15 minutes. The browser receives only that UUID and a calculated display price.
-The catalog uses supplier destination codes; a destination discovery/autocomplete
-integration is an extension point, not seeded hotel inventory.
+Names and supplier destination identifiers come from the indexed PostgreSQL TBO
+country/city/hotel catalogue. Country, city and indexed hotel names resolve on the
+backend without depending on capitalization or accents. Public suggestions query this catalogue and a
+five-minute Redis cache; they never wait for supplier HTTP requests. Catalogue
+records and caches are scoped to a hash of the supplier endpoint and account.
+
+`GET /hotels/catalog` exposes paginated normalized static hotel content without
+requiring stay dates or claiming prices or availability. Country browsing warms
+its city catalogues with at most three concurrent reads and returns `syncing`
+while that work is pending. The frontend polls only while synchronization is
+pending; failures produce safe domain errors. A complete dated search uses the
+separate availability flow. Country suggestions use canonical `country:XX`
+identifiers; raw names remain valid search input.
 
 Authenticated recheck loads the cached rate, validates the stay again, asks the
 supplier for its current offer, and verifies the unchanged token,
@@ -136,7 +147,8 @@ Mock search alone accepts omitted stay criteria. With no destination it combines
 all persisted destinations before filtering, sorting and pagination; the backend
 returns the effective sample pricing stay in `metadata.previewStay`. An empty
 preview search shows the complete 45-hotel seed with a default page size of 50.
-Live search keeps its required destination and stay validation.
+Live priced search keeps its required destination and stay validation. The
+separate real catalogue browse accepts omitted stay criteria and returns no rates.
 Production configuration rejects mock mode. See [hotel preview](hotel-preview.md).
 The client uses configured HTTPS, Basic authentication, deadlines, redacted
 context logging and bounded retries for explicitly allowlisted read operations.
@@ -144,14 +156,22 @@ Endpoint configuration rejects embedded credentials, query strings and fragments
 the client rejects redirects. No mutation can enter the read retry path. The v2.1
 adapter implements `Search`, `HotelDetails`, `PreBook` and the city-scoped
 `TBOHotelCodeList`, with synthetic contract fixtures and default
-`TBO_READS_ENABLED=false`. Search batches up to 100 codes with at most three
+`TBO_READS_ENABLED=false`. CountryList and CityList now populate the normalized
+catalogue, and city hotel content/details are cached separately from live rates.
+Search batches up to 100 codes with at most three
 concurrent requests, omits unsupported currency and room-limit parameters, and
 rejects a returned currency different from the requested one. Supplier no-inventory,
 rate expiry and account errors are normalized without exposing supplier payloads.
 Hotel results filtering, sorting and pagination run in the search domain after
 authoritative pricing. Live unfiltered inventory is cached in Redis for 30 seconds
-by the complete stay and pricing policy, with identical in-flight requests coalesced
+by the complete stay, normalized destination name, optional selected hotel, supplier account and pricing policy, with identical in-flight requests coalesced
 per process. Original opaque rate references and expiry are retained across filters.
+Large rate-reference writes use bounded Redis pipelines with verified acknowledgments.
+Catalogue resolution and the availability batch sequence share a bounded deadline.
+A country search includes all its active supplier cities; any failed batch or
+timeout rejects the complete priced search. Static catalogue pages may grow during
+background synchronization and explicitly report that pending state. See
+[live hotel search](live-hotel-search.md).
 
 The supplied JSON Hotel API v2.1 specification is documented in the
 [TBO API reference](../apps/api/src/modules/tbo/API_REFERENCE.md), with scoped

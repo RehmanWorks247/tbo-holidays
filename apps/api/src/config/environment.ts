@@ -28,6 +28,16 @@ const environmentSchema = z
     TBO_READS_ENABLED: booleanValue,
     TBO_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
     TBO_MAX_RETRIES: z.coerce.number().int().min(0).max(3).default(2),
+    TBO_SEARCH_TIMEOUT_MS: z.coerce.number().int().min(1000).max(110000).default(90000),
+    TBO_CATALOG_COUNTRIES: z
+      .string()
+      .regex(/^[A-Z]{2}(,[A-Z]{2})*$/)
+      .default('SA,AE,GB,TR,ID,PK'),
+    TBO_CATALOG_WARM_CITIES: z
+      .string()
+      .regex(/^(?:[1-9]\d{0,15}(?:,[1-9]\d{0,15})*)?$/)
+      .default(''),
+    TBO_CATALOG_TTL_SECONDS: z.coerce.number().int().min(300).max(604800).default(86400),
     PAYMENT_PROVIDER: z.literal('disabled').default('disabled'),
     JOBS_ENABLED: booleanValue,
     MARKUP_BASIS_POINTS: z.coerce.number().int().min(0).max(10000).default(1000),

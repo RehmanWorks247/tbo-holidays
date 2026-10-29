@@ -11,6 +11,7 @@ import type { z } from 'zod';
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { publicEnvironment } from '@/config/env';
 import { DateRangePicker } from '@/features/hotel-search/components/date-range-picker';
+import { HotelDestinationPicker } from '@/features/hotel-search/components/hotel-destination-picker';
 import styles from '@/features/hotel-search/components/hotel-search-form.module.css';
 import { useHotelDestinations } from '@/features/hotel-search/queries/use-hotel-destinations';
 import { createHotelSearchFormSchema } from '@/features/hotel-search/schemas/hotel-search.schema';
@@ -46,6 +47,7 @@ export function HotelSearchForm({
     resolver: zodResolver(schema),
     defaultValues: {
       destination: initialSearch?.destination ?? '',
+      hotelId: initialSearch?.hotelId,
       checkIn: initialSearch?.checkIn ?? '',
       checkOut: initialSearch?.checkOut ?? '',
       nationality: initialSearch?.nationality ?? '',
@@ -130,22 +132,29 @@ export function HotelSearchForm({
                 ))}
               </select>
             ) : (
-              <input
-                id={`${formId}-destination`}
-                placeholder={copy.destinationPlaceholder}
-                autoComplete="off"
-                {...register('destination')}
-                aria-invalid={Boolean(errors.destination)}
-                aria-describedby={`${formId}-destination-help${errors.destination ? ` ${formId}-destination-error` : ''}`}
+              <Controller
+                control={control}
+                name="destination"
+                render={({ field }) => (
+                  <HotelDestinationPicker
+                    id={`${formId}-destination`}
+                    inputRef={field.ref}
+                    value={{ destination: field.value ?? '', hotelId: watch('hotelId') }}
+                    initialLabel={
+                      destinations.data?.destinations.find((item) => item.id === field.value)?.name
+                    }
+                    onChange={(selection) => {
+                      field.onChange(selection.destination);
+                      setValue('hotelId', selection.hotelId);
+                    }}
+                    onBlur={field.onBlur}
+                    invalid={Boolean(errors.destination)}
+                    errorId={`${formId}-destination-error`}
+                  />
+                )}
               />
             )}
           </div>
-          {!isMock ? (
-            <div id={`${formId}-destination-help`} className={styles.destinationHelp}>
-              <strong>{copy.destinationHelpTitle}</strong>
-              <p>{copy.destinationHelp}</p>
-            </div>
-          ) : null}
         </div>
 
         {variant === 'results' ? (
@@ -434,7 +443,9 @@ export function HotelSearchForm({
       {Object.keys(errors).length > 0 ? (
         <div className={styles.errors} role="alert">
           {errors.destination ? (
-            <p id={`${formId}-destination-error`}>{copy.destinationError}</p>
+            <p id={`${formId}-destination-error`} lang={isMock ? locale : 'en'}>
+              {isMock ? copy.destinationError : 'Enter a country, city or hotel name.'}
+            </p>
           ) : null}
           {errors.checkIn || errors.checkOut ? (
             <p id={`${formId}-dates-error`}>{copy.datesError}</p>

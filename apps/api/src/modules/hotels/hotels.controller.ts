@@ -1,4 +1,11 @@
-import { type RecheckRequest, recheckRequestSchema } from '@hotel/contracts';
+import {
+  type HotelCatalogQuery,
+  hotelCatalogQuerySchema,
+  type HotelSuggestionsQuery,
+  hotelSuggestionsQuerySchema,
+  type RecheckRequest,
+  recheckRequestSchema,
+} from '@hotel/contracts';
 import { Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,6 +28,20 @@ export class HotelsController {
   @Get('destinations')
   getDestinations() {
     return this.hotels.getDestinations();
+  }
+
+  @Public()
+  @Get('suggestions')
+  getSuggestions(
+    @Query(new ZodValidationPipe(hotelSuggestionsQuerySchema)) query: HotelSuggestionsQuery,
+  ) {
+    return this.hotels.getSuggestions(query);
+  }
+
+  @Public()
+  @Get('catalog')
+  browseHotels(@Query(new ZodValidationPipe(hotelCatalogQuerySchema)) query: HotelCatalogQuery) {
+    return this.hotels.browseHotels(query);
   }
 
   @Public()

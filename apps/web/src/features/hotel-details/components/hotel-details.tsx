@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HotelSearchForm } from '@/features/hotel-search/components/hotel-search-form';
 import { useHotelSearch } from '@/features/hotel-search/queries/use-hotel-search';
 import { parseHotelSearch } from '@/features/hotel-search/utils/search-params';
 import { formatDate } from '@/lib/format-date';
@@ -356,9 +357,14 @@ export function HotelDetails({ hotelId }: { hotelId: string }) {
         {!request ? (
           <Card className="space-y-4">
             <p>{messages.chooseDatesAndGuests}</p>
-            <Button asChild>
-              <Link href="/hotels">{messages.searchAvailability}</Link>
-            </Button>
+            <HotelSearchForm
+              initialSearch={{
+                ...parseHotelSearch(params, 'mock', currency),
+                destination: hotel.city ?? params.get('destination') ?? '',
+                hotelId: hotel.id,
+                currency,
+              }}
+            />
           </Card>
         ) : null}
         {request && search.isPending ? (

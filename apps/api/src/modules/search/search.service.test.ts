@@ -44,7 +44,7 @@ const rate: SupplierRate = {
 };
 const price = { ...rate.price, markupAmount: 1000, discountAmount: 0, totalAmount: 12000 };
 
-function setup() {
+function setup(cacheScope?: string) {
   const set = vi.fn();
   const get = vi.fn();
   const saveInventory = vi.fn().mockResolvedValue('OK');
@@ -55,6 +55,7 @@ function setup() {
   const recheckPrice = vi.fn().mockResolvedValue(rate);
   const supplier = {
     name: 'TBO',
+    ...(cacheScope ? { cacheScope } : {}),
     searchHotels: vi.fn().mockResolvedValue([{ hotel, rates: [rate] }]),
     recheckPrice,
   } as unknown as HotelSupplier;
@@ -74,6 +75,27 @@ function setup() {
 
 describe('opaque hotel rates', () => {
   afterEach(() => vi.useRealTimers());
+  it('shares inventory across capitalization, accents and whitespace without relabeling a country as its first city', async () => {
+    const { service, get, saveInventory, supplier } = setup();
+    const inventory = new Map<string, string>();
+    get.mockImplementation(async (key: string) => inventory.get(key) ?? null);
+    saveInventory.mockImplementation(async (key: string, value: string) => {
+      inventory.set(key, value);
+      return 'OK';
+    });
+    vi.mocked(supplier.searchHotels).mockResolvedValue([
+      { hotel: { ...hotel, city: 'Istanbul' }, rates: [rate] },
+    ]);
+    const first = await service.searchHotels({ ...criteria, destination: 'Turkey' });
+    const second = await service.searchHotels({ ...criteria, destination: '  T\u00dcRKEY  ' });
+    expect(second.hotels).toEqual(first.hotels);
+    expect(supplier.searchHotels).toHaveBeenCalledTimes(1);
+    expect(first.metadata?.destination).toBe('Turkey');
+    const country = await service.searchHotels({ ...criteria, destination: 'country:TR' });
+    expect(country.metadata?.destination).not.toContain('Istanbul');
+    expect(country.metadata?.destination).not.toContain('country:');
+  });
+
   it('reuses validated unfiltered inventory for filter, sort and page changes without extending rates', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2099-12-01T00:00:00Z'));
@@ -108,7 +130,7 @@ describe('opaque hotel rates', () => {
     expect(fresh.hotels[0]?.rates[0]?.rateId).not.toBe(first.hotels[0]?.rates[0]?.rateId);
   });
 
-  it('does not share cached inventory across stay, occupancy, nationality or currency changes', async () => {
+  it('does not share cached inventory across hotel, stay, occupancy, nationality or currency changes', async () => {
     const { service, get, saveInventory, supplier } = setup();
     const inventory = new Map<string, string>();
     get.mockImplementation(async (key: string) => inventory.get(key) ?? null);
@@ -118,14 +140,35 @@ describe('opaque hotel rates', () => {
     });
     for (const input of [
       criteria,
+      { ...criteria, hotelId: '123' },
       { ...criteria, checkOut: '2100-01-04' },
       { ...criteria, nationality: 'GB' },
       { ...criteria, currency: 'GBP' as const },
       { ...criteria, rooms: [{ adults: 3, childrenAges: [] }] },
     ])
       await service.searchHotels(input);
-    expect(supplier.searchHotels).toHaveBeenCalledTimes(5);
-    expect(inventory.size).toBe(5);
+    expect(supplier.searchHotels).toHaveBeenCalledTimes(6);
+    expect(inventory.size).toBe(6);
+    expect(supplier.searchHotels).toHaveBeenCalledWith({ ...criteria, hotelId: '123' });
+  });
+
+  it('isolates inventory and rate references across supplier account scopes', async () => {
+    const first = setup('account-one');
+    const second = setup('account-two');
+    await first.service.searchHotels(criteria);
+    await second.service.searchHotels(criteria);
+    expect(first.saveInventory.mock.calls[0]?.[0]).not.toBe(
+      second.saveInventory.mock.calls[0]?.[0],
+    );
+    const savedRate = String(first.set.mock.calls[0]?.[1]);
+    expect(JSON.parse(savedRate)).toMatchObject({ supplierScope: 'account-one' });
+    second.get.mockResolvedValue(savedRate);
+    await expect(second.service.recheckHotelRate('opaque-reference', 'user')).rejects.toMatchObject(
+      {
+        code: 'RATE_EXPIRED',
+      },
+    );
+    expect(second.recheckPrice).not.toHaveBeenCalled();
   });
 
   it('coalesces concurrent identical searches and removes failed pending work for a later retry', async () => {
@@ -178,6 +221,83 @@ describe('opaque hotel rates', () => {
     await expect(service.searchHotels(criteria)).rejects.toMatchObject({
       code: 'SEARCH_UNAVAILABLE',
     });
+    expect(saveInventory).not.toHaveBeenCalled();
+  });
+
+  it('persists large rate inventories in bounded batches before publishing inventory', async () => {
+    const { service, supplier, set, exec, saveInventory } = setup();
+    vi.mocked(supplier.searchHotels).mockResolvedValue([
+      {
+        hotel,
+        rates: Array.from({ length: 1201 }, (_, index) => ({
+          ...rate,
+          supplierRateId: `private-${index}`,
+        })),
+      },
+    ]);
+    let persisted = 0;
+    const batchSizes: number[] = [];
+    exec.mockImplementation(async () => {
+      expect(saveInventory).not.toHaveBeenCalled();
+      const batchSize = set.mock.calls.length - persisted;
+      batchSizes.push(batchSize);
+      persisted = set.mock.calls.length;
+      return Array.from({ length: batchSize }, () => [null, 'OK']);
+    });
+    const result = await service.searchHotels(criteria);
+    expect(batchSizes).toEqual([500, 500, 201]);
+    expect(result.hotels[0]?.rates).toHaveLength(1201);
+    expect(saveInventory).toHaveBeenCalledTimes(1);
+    expect(new Set(set.mock.calls.map(([key]) => key)).size).toBe(1201);
+  });
+
+  it.each([{ acknowledgment: null }, { acknowledgment: [] }, { acknowledgment: [[null, null]] }])(
+    'does not publish inventory when Redis returns an incomplete acknowledgment: $acknowledgment',
+    async ({ acknowledgment }) => {
+      const { service, exec, saveInventory } = setup();
+      exec.mockResolvedValue(acknowledgment);
+      await expect(service.searchHotels(criteria)).rejects.toMatchObject({
+        code: 'SEARCH_UNAVAILABLE',
+      });
+      expect(saveInventory).not.toHaveBeenCalled();
+    },
+  );
+
+  it('anchors rate expiry before slow supplier batches and stores an absolute Redis expiry', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-12-01T00:00:00Z'));
+    const { service, supplier, set } = setup();
+    vi.mocked(supplier.searchHotels).mockImplementation(async () => {
+      vi.setSystemTime(new Date('2099-12-01T00:02:00Z'));
+      return [{ hotel, rates: [rate] }];
+    });
+    const result = await service.searchHotels(criteria);
+    expect(result.hotels[0]?.rates[0]?.expiresAt).toBe('2099-12-01T00:15:00.000Z');
+    expect(set.mock.calls[0]?.slice(2)).toEqual(['PXAT', Date.parse('2099-12-01T00:15:00.000Z')]);
+  });
+
+  it('rejects supplier results that arrive after the original rate lifetime', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-12-01T00:00:00Z'));
+    const { service, supplier, set, saveInventory } = setup();
+    vi.mocked(supplier.searchHotels).mockImplementation(async () => {
+      vi.setSystemTime(new Date('2099-12-01T00:15:01Z'));
+      return [{ hotel, rates: [rate] }];
+    });
+    await expect(service.searchHotels(criteria)).rejects.toMatchObject({ code: 'RATE_EXPIRED' });
+    expect(set).not.toHaveBeenCalled();
+    expect(saveInventory).not.toHaveBeenCalled();
+  });
+
+  it('does not publish inventory if its references expire while Redis is persisting them', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-12-01T00:00:00Z'));
+    const { service, exec, saveInventory } = setup();
+    exec.mockImplementation(async () => {
+      vi.setSystemTime(new Date('2099-12-01T00:15:01Z'));
+      return [[null, 'OK']];
+    });
+    await expect(service.searchHotels(criteria)).rejects.toMatchObject({ code: 'RATE_EXPIRED' });
     expect(saveInventory).not.toHaveBeenCalled();
   });
 
